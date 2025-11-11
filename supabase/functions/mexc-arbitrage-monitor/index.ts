@@ -41,6 +41,11 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Função para normalizar símbolo: BTCUSDT -> BTC, BTC_USDT -> BTC
+    const normalizeSymbol = (symbol: string): string => {
+      return symbol.replace('USDT', '').replace('_', '');
+    };
+
     // Função para buscar tickers Spot
     const fetchSpotTickers = async (): Promise<Map<string, SpotTicker>> => {
       try {
@@ -55,7 +60,8 @@ Deno.serve(async (req) => {
         
         data.forEach(ticker => {
           if (ticker.symbol.endsWith('USDT')) {
-            usdtPairs.set(ticker.symbol, ticker);
+            const baseSymbol = normalizeSymbol(ticker.symbol);
+            usdtPairs.set(baseSymbol, ticker);
           }
         });
         
@@ -82,9 +88,8 @@ Deno.serve(async (req) => {
         if (data.data && Array.isArray(data.data)) {
           data.data.forEach(ticker => {
             if (ticker.symbol.endsWith('_USDT')) {
-              // Converter BTC_USDT -> BTCUSDT para match com spot
-              const spotSymbol = ticker.symbol.replace('_', '');
-              usdtPairs.set(spotSymbol, ticker);
+              const baseSymbol = normalizeSymbol(ticker.symbol);
+              usdtPairs.set(baseSymbol, ticker);
             }
           });
         }
@@ -114,9 +119,9 @@ Deno.serve(async (req) => {
       let opportunitiesFound = 0;
       const opportunities: any[] = [];
 
-      // Processar cada par que existe em ambos os mercados
-      spotTickers.forEach((spotTicker, symbol) => {
-        const futuresTicker = futuresTickers.get(symbol);
+      // Processar cada par que existe em ambos os mercados (symbol agora é o baseSymbol: BTC, ETH, etc)
+      spotTickers.forEach((spotTicker, baseSymbol) => {
+        const futuresTicker = futuresTickers.get(baseSymbol);
         
         if (!futuresTicker) return;
 
@@ -148,7 +153,7 @@ Deno.serve(async (req) => {
           opportunitiesFound++;
           
           opportunities.push({
-            pair_symbol: symbol,
+            pair_symbol: baseSymbol,
             spot_bid_price: spotAskPrice,
             spot_volume_24h: spotVolume,
             futures_ask_price: futuresBidPrice,
@@ -162,7 +167,7 @@ Deno.serve(async (req) => {
           });
 
           if (opportunitiesFound <= 10) {
-            console.log(`🔵 LONG ${symbol}: ${spreadNetLong.toFixed(4)}% | Comprar Spot $${spotAskPrice} → Vender Fut $${futuresBidPrice}`);
+            console.log(`🔵 LONG ${baseSymbol}: ${spreadNetLong.toFixed(4)}% | Comprar Spot $${spotAskPrice} → Vender Fut $${futuresBidPrice}`);
           }
         }
 
@@ -176,7 +181,7 @@ Deno.serve(async (req) => {
           opportunitiesFound++;
           
           opportunities.push({
-            pair_symbol: symbol,
+            pair_symbol: baseSymbol,
             spot_bid_price: spotBidPrice,
             spot_volume_24h: spotVolume,
             futures_ask_price: futuresAskPrice,
@@ -190,7 +195,7 @@ Deno.serve(async (req) => {
           });
 
           if (opportunitiesFound <= 10) {
-            console.log(`🔴 SHORT ${symbol}: ${spreadNetShort.toFixed(4)}% | Vender Spot $${spotBidPrice} → Comprar Fut $${futuresAskPrice}`);
+            console.log(`🔴 SHORT ${baseSymbol}: ${spreadNetShort.toFixed(4)}% | Vender Spot $${spotBidPrice} → Comprar Fut $${futuresAskPrice}`);
           }
         }
       });
