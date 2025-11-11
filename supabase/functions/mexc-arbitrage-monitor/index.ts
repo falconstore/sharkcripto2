@@ -39,6 +39,39 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Mapa para rastrear último cruzamento de cada moeda (evitar duplicatas)
+    const lastCrossings = new Map<string, number>();
+
+    // Função auxiliar para registrar cruzamento
+    const registerCrossing = async (pairSymbol: string, spreadNetPercentSaida: number) => {
+      const now = Date.now();
+      const lastCrossing = lastCrossings.get(pairSymbol) || 0;
+      
+      // Só registrar se passou mais de 30 segundos desde o último cruzamento
+      if (now - lastCrossing < 30000) {
+        return;
+      }
+
+      try {
+        const { error } = await supabase
+          .from('pair_crossings')
+          .insert({
+            pair_symbol: pairSymbol,
+            spread_net_percent_saida: spreadNetPercentSaida,
+            timestamp: new Date().toISOString(),
+          });
+
+        if (error) {
+          console.error(`Erro ao registrar cruzamento para ${pairSymbol}:`, error);
+        } else {
+          lastCrossings.set(pairSymbol, now);
+          console.log(`✅ CRUZAMENTO registrado: ${pairSymbol} - Saída: ${spreadNetPercentSaida.toFixed(2)}%`);
+        }
+      } catch (err) {
+        console.error(`Erro ao registrar cruzamento para ${pairSymbol}:`, err);
+      }
+    };
+
     // Função para normalizar símbolo: BTCUSDT -> BTC, BTC_USDT -> BTC
     const normalizeSymbol = (symbol: string): string => {
       return symbol.replace('USDT', '').replace('_', '');
@@ -163,14 +196,14 @@ Deno.serve(async (req) => {
       const targetPairs = ['RAIL', 'BAGWORK', 'ORE', 'BOBBSC', 'BTC', 'ETH'];
 
       // Processar cada par que existe em ambos os mercados (symbol agora é o baseSymbol: BTC, ETH, etc)
-      spotTickers.forEach((spotTicker, baseSymbol) => {
+      for (const [baseSymbol, spotTicker] of spotTickers) {
         const futuresTicker = futuresTickers.get(baseSymbol);
         
         if (!futuresTicker) {
           if (targetPairs.includes(baseSymbol)) {
             console.log(`❌ ${baseSymbol} - Não encontrado em futuros`);
           }
-          return;
+          continue;
         }
         
         pairsProcessed++;
@@ -222,6 +255,11 @@ Deno.serve(async (req) => {
         const spreadGrossShort = ((validSpotBid - validFutAsk) / validFutAsk) * 100;
         const spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
+        // Detectar e registrar cruzamento (quando saída fica positiva)
+        if (spreadNetShort > 0) {
+          await registerCrossing(baseSymbol, spreadNetShort);
+        }
+
         // Combinar ambas as direções em uma única oportunidade
         opportunitiesFound++;
         
@@ -246,7 +284,7 @@ Deno.serve(async (req) => {
         if (opportunitiesFound <= 5) {
           console.log(`💰 ${baseSymbol}: Entrada=${spreadNetLong.toFixed(4)}% | Saída=${spreadNetShort.toFixed(4)}%`);
         }
-      });
+      }
 
       console.log(`\n📊 Resumo do processamento:`);
       console.log(`   - Pares totais processados: ${pairsProcessed}`);

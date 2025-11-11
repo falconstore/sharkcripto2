@@ -62,6 +62,30 @@ export type Database = {
         }
         Relationships: []
       }
+      pair_crossings: {
+        Row: {
+          created_at: string | null
+          id: string
+          pair_symbol: string
+          spread_net_percent_saida: number
+          timestamp: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          pair_symbol: string
+          spread_net_percent_saida: number
+          timestamp?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          pair_symbol?: string
+          spread_net_percent_saida?: number
+          timestamp?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

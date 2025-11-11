@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { usePreferences } from '@/hooks/usePreferences';
+import { useCrossings } from '@/hooks/useCrossings';
+import CrossingsHistoryModal from './CrossingsHistoryModal';
 import {
   Table,
   TableBody,
@@ -11,7 +13,8 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, ArrowUpDown, TrendingUp, Star, Ban } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Search, ArrowUpDown, TrendingUp, Star, Ban, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 
@@ -21,9 +24,12 @@ type SortOrder = 'asc' | 'desc';
 const OpportunitiesTable = () => {
   const { opportunities } = useOpportunities();
   const { favorites, blacklist, toggleFavorite, toggleBlacklist } = usePreferences();
+  const { crossingsCount } = useCrossings();
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('spread_net_percent');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [selectedPair, setSelectedPair] = useState('');
 
   const filteredAndSorted = useMemo(() => {
     // Filtrar blacklist
@@ -69,6 +75,15 @@ const OpportunitiesTable = () => {
       setSortField(field);
       setSortOrder('desc');
     }
+  };
+
+  const handleOpenHistory = (symbol: string) => {
+    setSelectedPair(symbol);
+    setHistoryModalOpen(true);
+  };
+
+  const getCrossingsForPair = (symbol: string): number => {
+    return crossingsCount[symbol] || 0;
   };
 
   const formatNumber = (num: number, decimals: number = 2) => {
@@ -142,16 +157,17 @@ const OpportunitiesTable = () => {
                   </Button>
                 </TableHead>
                 <TableHead>Saída %</TableHead>
+                <TableHead>Cruzamentos (1h)</TableHead>
                 <TableHead>Preço Spot (Compra)</TableHead>
                 <TableHead>Preço Futuros (Venda)</TableHead>
                 <TableHead>Volume 24h (Spot / Futuro)</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
+                <TableHead className="w-[150px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredAndSorted.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     {search ? 'Nenhuma oportunidade encontrada' : 'Aguardando dados...'}
                   </TableCell>
                 </TableRow>
@@ -199,6 +215,15 @@ const OpportunitiesTable = () => {
                           {formatNumber(opp.spread_net_percent_saida, 4)}%
                         </span>
                       </TableCell>
+                      <TableCell>
+                        {getCrossingsForPair(opp.pair_symbol) > 0 ? (
+                          <Badge variant="default" className="bg-green-600">
+                            {getCrossingsForPair(opp.pair_symbol)}x
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">0</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="font-mono">
                         ${formatNumber(opp.spot_bid_price, 8)}
                       </TableCell>
@@ -212,17 +237,28 @@ const OpportunitiesTable = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            toggleBlacklist(opp.pair_symbol);
-                            toast.info(`${opp.pair_symbol} adicionado à blacklist`);
-                          }}
-                          className="p-1 h-auto text-destructive hover:text-destructive"
-                        >
-                          <Ban className="w-4 h-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleOpenHistory(opp.pair_symbol)}
+                            className="h-8 w-8"
+                            title="Ver histórico de cruzamentos"
+                          >
+                            <History className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              toggleBlacklist(opp.pair_symbol);
+                              toast.info(`${opp.pair_symbol} adicionado à blacklist`);
+                            }}
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                          >
+                            <Ban className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -232,6 +268,12 @@ const OpportunitiesTable = () => {
           </Table>
         </div>
       </CardContent>
+
+      <CrossingsHistoryModal
+        open={historyModalOpen}
+        onOpenChange={setHistoryModalOpen}
+        pairSymbol={selectedPair}
+      />
     </Card>
   );
 };
