@@ -6,6 +6,7 @@ import DashboardStats from '@/components/DashboardStats';
 import MonitoringStatus from '@/components/MonitoringStatus';
 import StartMonitoringButton from '@/components/StartMonitoringButton';
 import OpportunitiesTable from '@/components/OpportunitiesTable';
+import ArbitrageCalculator from '@/components/ArbitrageCalculator';
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -47,6 +48,9 @@ const Dashboard = () => {
 
         {/* Stats Cards */}
         <DashboardStats />
+
+        {/* Calculadora de Arbitragem */}
+        <ArbitrageCalculator />
 
         {/* Tabela de Oportunidades */}
         <OpportunitiesTable />
