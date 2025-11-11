@@ -26,7 +26,8 @@ interface FuturesTicker {
 // Taxas da MEXC (em %)
 const SPOT_TAKER_FEE = 0.10;
 const FUTURES_TAKER_FEE = 0.02;
-const MIN_VOLUME_USDT = 100000;
+const MIN_VOLUME_USDT = 10000; // Reduzido para capturar mais oportunidades
+const MIN_SPREAD_NET = 0.01; // Spread mínimo líquido de 0.01%
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -119,18 +120,16 @@ Deno.serve(async (req) => {
         
         if (!futuresTicker) return;
 
-        // ARBITRAGEM CORRETA:
-        // 1. COMPRAR SPOT (pagar askPrice)
-        // 2. ABRIR SHORT FUTURES (receber bidPrice)
-        // 3. Lucro = (Futures Bid - Spot Ask) / Spot Ask
-        
+        const spotBidPrice = parseFloat(spotTicker.bidPrice);
         const spotAskPrice = parseFloat(spotTicker.askPrice);
         const spotVolume = parseFloat(spotTicker.quoteVolume);
         const futuresBidPrice = parseFloat(futuresTicker.bidPrice);
+        const futuresAskPrice = parseFloat(futuresTicker.askPrice);
         const futuresVolume = parseFloat(futuresTicker.volume24);
 
         // Validar dados
-        if (!spotAskPrice || !futuresBidPrice || spotAskPrice <= 0 || futuresBidPrice <= 0) {
+        if (!spotBidPrice || !spotAskPrice || !futuresBidPrice || !futuresAskPrice ||
+            spotBidPrice <= 0 || spotAskPrice <= 0 || futuresBidPrice <= 0 || futuresAskPrice <= 0) {
           return;
         }
 
@@ -139,30 +138,59 @@ Deno.serve(async (req) => {
           return;
         }
 
-        // Calcular spread (Futures Bid - Spot Ask)
-        const spreadGross = ((futuresBidPrice - spotAskPrice) / spotAskPrice) * 100;
-        const spreadNet = spreadGross - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
+        // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry)
+        // Comprar Spot (pagar askPrice) + Vender Futures/Short (receber bidPrice)
+        // Lucro = (Futures Bid - Spot Ask) / Spot Ask - taxas
+        const spreadGrossLong = ((futuresBidPrice - spotAskPrice) / spotAskPrice) * 100;
+        const spreadNetLong = spreadGrossLong - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
-        // Apenas spreads positivos (lucro na entrada)
-        if (spreadNet > 0) {
+        if (spreadNetLong >= MIN_SPREAD_NET) {
           opportunitiesFound++;
           
           opportunities.push({
             pair_symbol: symbol,
-            spot_bid_price: spotAskPrice, // Guardando como spot_bid mas é o askPrice
+            spot_bid_price: spotAskPrice,
             spot_volume_24h: spotVolume,
-            futures_ask_price: futuresBidPrice, // Guardando como futures_ask mas é o bidPrice
+            futures_ask_price: futuresBidPrice,
             futures_volume_24h: futuresVolume,
-            spread_gross_percent: spreadGross,
-            spread_net_percent: spreadNet,
+            spread_gross_percent: spreadGrossLong,
+            spread_net_percent: spreadNetLong,
             spot_taker_fee: SPOT_TAKER_FEE,
             futures_taker_fee: FUTURES_TAKER_FEE,
             is_active: true,
             timestamp: new Date().toISOString()
           });
 
-          if (opportunitiesFound <= 5) {
-            console.log(`💰 ${symbol}: ${spreadNet.toFixed(4)}% | Comprar Spot: $${spotAskPrice} | Vender Futures: $${futuresBidPrice}`);
+          if (opportunitiesFound <= 10) {
+            console.log(`🔵 LONG ${symbol}: ${spreadNetLong.toFixed(4)}% | Comprar Spot $${spotAskPrice} → Vender Fut $${futuresBidPrice}`);
+          }
+        }
+
+        // DIREÇÃO 2: SHORT SPOT + LONG FUTURES (Reverse Cash and Carry)
+        // Vender Spot (receber bidPrice) + Comprar Futures/Long (pagar askPrice)
+        // Lucro = (Spot Bid - Futures Ask) / Futures Ask - taxas
+        const spreadGrossShort = ((spotBidPrice - futuresAskPrice) / futuresAskPrice) * 100;
+        const spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
+
+        if (spreadNetShort >= MIN_SPREAD_NET) {
+          opportunitiesFound++;
+          
+          opportunities.push({
+            pair_symbol: symbol,
+            spot_bid_price: spotBidPrice,
+            spot_volume_24h: spotVolume,
+            futures_ask_price: futuresAskPrice,
+            futures_volume_24h: futuresVolume,
+            spread_gross_percent: spreadGrossShort,
+            spread_net_percent: spreadNetShort,
+            spot_taker_fee: SPOT_TAKER_FEE,
+            futures_taker_fee: FUTURES_TAKER_FEE,
+            is_active: true,
+            timestamp: new Date().toISOString()
+          });
+
+          if (opportunitiesFound <= 10) {
+            console.log(`🔴 SHORT ${symbol}: ${spreadNetShort.toFixed(4)}% | Vender Spot $${spotBidPrice} → Comprar Fut $${futuresAskPrice}`);
           }
         }
       });
