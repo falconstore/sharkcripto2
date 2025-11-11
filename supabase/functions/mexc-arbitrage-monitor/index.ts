@@ -175,11 +175,12 @@ Deno.serve(async (req) => {
         
         pairsProcessed++;
 
-        const spotBidPrice = parseFloat(spotTicker.bidPrice);
-        const spotAskPrice = parseFloat(spotTicker.askPrice);
+        // Permitir valores 0, NaN, null - converter tudo para número válido
+        const spotBidPrice = parseFloat(spotTicker.bidPrice) || 0.00000001;
+        const spotAskPrice = parseFloat(spotTicker.askPrice) || 0.00000001;
         const spotVolume = parseFloat(spotTicker.quoteVolume) || 0;
-        const futuresBidPrice = parseFloat(futuresTicker.bid1);
-        const futuresAskPrice = parseFloat(futuresTicker.ask1);
+        const futuresBidPrice = parseFloat(futuresTicker.bid1) || 0.00000001;
+        const futuresAskPrice = parseFloat(futuresTicker.ask1) || 0.00000001;
         const futuresVolume = parseFloat(futuresTicker.volume24) || 0;
 
         // Log detalhado para moedas específicas
@@ -196,18 +197,12 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Validar APENAS preços (volume pode ser 0)
-        if (!spotBidPrice || !spotAskPrice || !futuresBidPrice || !futuresAskPrice ||
-            spotBidPrice <= 0 || spotAskPrice <= 0 || futuresBidPrice <= 0 || futuresAskPrice <= 0) {
-          pairsSkippedInvalidPrice++;
-          if (targetPairs.includes(baseSymbol)) {
-            console.log(`❌ ${baseSymbol} - IGNORADO por preços inválidos`);
-          }
-          if (pairsSkippedInvalidPrice <= 10) {
-            skippedPairs.push(`${baseSymbol} (preços inválidos)`);
-          }
-          return;
-        }
+        // REMOVER VALIDAÇÃO DE PREÇOS - aceitar qualquer valor
+        // Apenas garantir que não são exatamente 0 (usar valor mínimo)
+        const validSpotBid = spotBidPrice > 0 ? spotBidPrice : 0.00000001;
+        const validSpotAsk = spotAskPrice > 0 ? spotAskPrice : 0.00000001;
+        const validFutBid = futuresBidPrice > 0 ? futuresBidPrice : 0.00000001;
+        const validFutAsk = futuresAskPrice > 0 ? futuresAskPrice : 0.00000001;
 
         pairsWithValidPrices++;
         
@@ -218,13 +213,13 @@ Deno.serve(async (req) => {
         // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry) - ENTRADA
         // Comprar Spot (pagar askPrice) + Vender Futures/Short (receber bidPrice)
         // Lucro = (Futures Bid - Spot Ask) / Spot Ask - taxas
-        const spreadGrossLong = ((futuresBidPrice - spotAskPrice) / spotAskPrice) * 100;
+        const spreadGrossLong = ((validFutBid - validSpotAsk) / validSpotAsk) * 100;
         const spreadNetLong = spreadGrossLong - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
         // DIREÇÃO 2: SHORT SPOT + LONG FUTURES (Reverse Cash and Carry) - SAÍDA
         // Vender Spot (receber bidPrice) + Comprar Futures/Long (pagar askPrice)
         // Lucro = (Spot Bid - Futures Ask) / Futures Ask - taxas
-        const spreadGrossShort = ((spotBidPrice - futuresAskPrice) / futuresAskPrice) * 100;
+        const spreadGrossShort = ((validSpotBid - validFutAsk) / validFutAsk) * 100;
         const spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
         // Combinar ambas as direções em uma única oportunidade
@@ -232,9 +227,9 @@ Deno.serve(async (req) => {
         
         const opp = {
           pair_symbol: baseSymbol,
-          spot_bid_price: spotBidPrice,
+          spot_bid_price: validSpotBid,
           spot_volume_24h: spotVolume,
-          futures_ask_price: futuresAskPrice,
+          futures_ask_price: validFutAsk,
           futures_volume_24h: futuresVolume,
           spread_gross_percent: spreadGrossLong,
           spread_net_percent: spreadNetLong, // Mantém compatibilidade (usa entrada)
