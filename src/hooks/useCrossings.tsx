@@ -30,12 +30,18 @@ export const useCrossings = () => {
   const fetchCrossingsCount = async (period: Period = '1h') => {
     try {
       setLoading(true);
-      const interval = PERIOD_INTERVALS[period];
+      
+      // Calcular timestamp usando Date ao invés de string SQL
+      const timeAgo = new Date();
+      if (period === '15m') timeAgo.setMinutes(timeAgo.getMinutes() - 15);
+      else if (period === '30m') timeAgo.setMinutes(timeAgo.getMinutes() - 30);
+      else if (period === '1h') timeAgo.setHours(timeAgo.getHours() - 1);
+      else if (period === '2h') timeAgo.setHours(timeAgo.getHours() - 2);
       
       const { data, error } = await supabase
         .from('pair_crossings')
         .select('pair_symbol')
-        .gte('timestamp', `now() - interval '${interval}'`);
+        .gte('timestamp', timeAgo.toISOString());
 
       if (error) throw error;
 
@@ -59,13 +65,18 @@ export const useCrossings = () => {
     period: Period = '1h'
   ): Promise<Crossing[]> => {
     try {
-      const interval = PERIOD_INTERVALS[period];
+      // Calcular timestamp usando Date ao invés de string SQL
+      const timeAgo = new Date();
+      if (period === '15m') timeAgo.setMinutes(timeAgo.getMinutes() - 15);
+      else if (period === '30m') timeAgo.setMinutes(timeAgo.getMinutes() - 30);
+      else if (period === '1h') timeAgo.setHours(timeAgo.getHours() - 1);
+      else if (period === '2h') timeAgo.setHours(timeAgo.getHours() - 2);
       
       const { data, error } = await supabase
         .from('pair_crossings')
         .select('*')
         .eq('pair_symbol', pairSymbol)
-        .gte('timestamp', `now() - interval '${interval}'`)
+        .gte('timestamp', timeAgo.toISOString())
         .order('timestamp', { ascending: false });
 
       if (error) throw error;

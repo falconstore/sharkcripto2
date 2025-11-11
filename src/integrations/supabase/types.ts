@@ -62,6 +62,83 @@ export type Database = {
         }
         Relationships: []
       }
+      bankroll_config: {
+        Row: {
+          created_at: string | null
+          id: string
+          initial_balance_usdt: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          initial_balance_usdt?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          initial_balance_usdt?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      bankroll_management: {
+        Row: {
+          amount_usdt: number
+          calculation_id: string | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          operation_date: string
+          operation_type: string
+          pair_symbol: string | null
+          profit_brl: number | null
+          profit_usdt: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount_usdt: number
+          calculation_id?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          operation_date?: string
+          operation_type: string
+          pair_symbol?: string | null
+          profit_brl?: number | null
+          profit_usdt?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount_usdt?: number
+          calculation_id?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          operation_date?: string
+          operation_type?: string
+          pair_symbol?: string | null
+          profit_brl?: number | null
+          profit_usdt?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bankroll_management_calculation_id_fkey"
+            columns: ["calculation_id"]
+            isOneToOne: false
+            referencedRelation: "calculation_history"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calculation_history: {
         Row: {
           created_at: string | null

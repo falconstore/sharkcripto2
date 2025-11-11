@@ -2,9 +2,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Play, Square, Loader2, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
-import { useOpportunities } from '@/hooks/useOpportunities';
 import { usePreferences } from '@/hooks/usePreferences';
+import { useGlobalMonitoring } from '@/hooks/useGlobalMonitoring';
 import {
   Select,
   SelectContent,
@@ -14,42 +13,15 @@ import {
 } from '@/components/ui/select';
 
 const StartMonitoringButton = () => {
-  const [isRunning, setIsRunning] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
-  const [intervalId, setIntervalId] = useState<number | null>(null);
-  const { setOpportunities } = useOpportunities();
   const { updateInterval, setUpdateInterval } = usePreferences();
+  const { isRunning, startMonitoring, stopMonitoring } = useGlobalMonitoring();
 
-  const callMonitor = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('mexc-arbitrage-monitor', {
-        method: 'POST'
-      });
-
-      if (error) {
-        console.error('Error calling monitor:', error);
-        return;
-      }
-
-      if (data?.opportunities) {
-        setOpportunities(data.opportunities);
-      }
-    } catch (error) {
-      console.error('Error calling monitor:', error);
-    }
-  };
-
-  const startMonitoring = async () => {
+  const handleStart = async () => {
     setIsStarting(true);
     
     try {
-      // Primeira chamada imediata
-      await callMonitor();
-
-      // Configurar chamadas com intervalo selecionado
-      const id = window.setInterval(callMonitor, updateInterval * 1000);
-      setIntervalId(id);
-      setIsRunning(true);
+      await startMonitoring(updateInterval);
       
       toast.success('Monitor de arbitragem iniciado!', {
         description: `Atualizando a cada ${updateInterval} segundo${updateInterval > 1 ? 's' : ''}`
@@ -64,13 +36,8 @@ const StartMonitoringButton = () => {
     }
   };
 
-  const stopMonitoring = () => {
-    if (intervalId) {
-      window.clearInterval(intervalId);
-      setIntervalId(null);
-    }
-    setIsRunning(false);
-    setOpportunities([]);
+  const handleStop = () => {
+    stopMonitoring();
     toast.info('Monitor parado', {
       description: 'O monitoramento foi interrompido'
     });
@@ -100,7 +67,7 @@ const StartMonitoringButton = () => {
       
       {!isRunning ? (
         <Button
-          onClick={startMonitoring}
+          onClick={handleStart}
           disabled={isStarting}
           className="bg-profit hover:bg-profit/90 text-profit-foreground"
           size="lg"
@@ -119,7 +86,7 @@ const StartMonitoringButton = () => {
         </Button>
       ) : (
         <Button
-          onClick={stopMonitoring}
+          onClick={handleStop}
           variant="destructive"
           size="lg"
         >

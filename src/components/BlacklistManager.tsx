@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Ban, Search, Trash2, X } from 'lucide-react';
+import { Ban, Search, Trash2, X, ExternalLink } from 'lucide-react';
 import { usePreferences } from '@/hooks/usePreferences';
 import { cleanupBlacklistedPair } from '@/lib/cleanupBlacklistedPair';
 import { toast } from '@/hooks/use-toast';
@@ -133,11 +133,29 @@ const BlacklistManager = ({ open, onOpenChange }: BlacklistManagerProps) => {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => window.open(`https://www.mexc.com/pt-BR/exchange/${symbol}_USDT`, '_blank')}
+                        className="text-xs"
+                      >
+                        <ExternalLink className="w-3 h-3 mr-1" />
+                        Spot
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(`https://futures.mexc.com/pt-BR/exchange/${symbol}_USDT`, '_blank')}
+                        className="text-xs"
+                      >
+                        <ExternalLink className="w-3 h-3 mr-1" />
+                        Futuro
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleClearHistory(symbol)}
                         className="text-xs"
                       >
                         <Trash2 className="w-3 h-3 mr-1" />
-                        Limpar histórico
+                        Limpar
                       </Button>
                       <Button
                         variant="destructive"

@@ -4,12 +4,13 @@ import { useTheme } from '@/hooks/useTheme';
 import { usePreferences } from '@/hooks/usePreferences';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Moon, Sun, LogOut, TrendingUp, BarChart3, Bell, Ban, Target } from 'lucide-react';
+import { Moon, Sun, LogOut, TrendingUp, BarChart3, Bell, Ban, Target, Wallet, Home } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationSettings from './NotificationSettings';
 import BlacklistManager from './BlacklistManager';
 import SpreadAlertsManager from './SpreadAlertsManager';
+import BankrollManager from './BankrollManager';
 import { useSpreadAlerts } from '@/hooks/useSpreadAlerts';
 
 const DashboardHeader = () => {
@@ -18,9 +19,13 @@ const DashboardHeader = () => {
   const { blacklist } = usePreferences();
   const { alerts } = useSpreadAlerts();
   const navigate = useNavigate();
+  const location = useLocation();
   const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
   const [blacklistOpen, setBlacklistOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [bankrollOpen, setBankrollOpen] = useState(false);
+  
+  const isStatisticsPage = location.pathname === '/statistics';
 
   const getInitials = (email: string) => {
     return email.substring(0, 2).toUpperCase();
@@ -41,15 +46,27 @@ const DashboardHeader = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/statistics')}
-              className="hidden sm:flex"
-            >
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Estatísticas
-            </Button>
+            {isStatisticsPage ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/')}
+                className="hidden sm:flex"
+              >
+                <Home className="w-4 h-4 mr-2" />
+                Dashboard
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/statistics')}
+                className="hidden sm:flex"
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Estatísticas
+              </Button>
+            )}
 
             <Button
               variant="outline"
@@ -79,6 +96,16 @@ const DashboardHeader = () => {
                   {blacklist.size}
                 </Badge>
               )}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBankrollOpen(true)}
+              className="hidden sm:flex"
+            >
+              <Wallet className="w-4 h-4 mr-2" />
+              Banca
             </Button>
 
             <Button
@@ -144,6 +171,11 @@ const DashboardHeader = () => {
       <BlacklistManager
         open={blacklistOpen}
         onOpenChange={setBlacklistOpen}
+      />
+      
+      <BankrollManager
+        open={bankrollOpen}
+        onOpenChange={setBankrollOpen}
       />
     </header>
   );

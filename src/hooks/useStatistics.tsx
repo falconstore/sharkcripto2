@@ -45,7 +45,8 @@ const getPeriodInterval = (period: Period, customStart?: Date, customEnd?: Date)
 export const useStatistics = (
   period: Period = 'today',
   customStart?: Date,
-  customEnd?: Date
+  customEnd?: Date,
+  blacklist: Set<string> = new Set()
 ) => {
   const [kpiData, setKpiData] = useState<KPIData>({
     totalCrossings: 0,
@@ -81,6 +82,7 @@ export const useStatistics = (
 
       const coinCounts: { [key: string]: number } = {};
       topCoinData?.forEach((item) => {
+        if (blacklist.has(item.pair_symbol)) return; // Filtrar blacklist
         coinCounts[item.pair_symbol] = (coinCounts[item.pair_symbol] || 0) + 1;
       });
 
@@ -126,6 +128,7 @@ export const useStatistics = (
       const grouped: { [key: string]: { count: number; spreads: number[]; lastTime: string } } = {};
       
       data?.forEach((item) => {
+        if (blacklist.has(item.pair_symbol)) return; // Filtrar blacklist
         if (!grouped[item.pair_symbol]) {
           grouped[item.pair_symbol] = { count: 0, spreads: [], lastTime: item.timestamp };
         }
@@ -182,6 +185,7 @@ export const useStatistics = (
       const grouped: { [key: string]: { [coin: string]: number } } = {};
 
       data?.forEach((item) => {
+        if (blacklist.has(item.pair_symbol)) return; // Filtrar blacklist
         const date = new Date(item.timestamp);
         const key = timeFormat === 'hour' 
           ? `${date.getHours()}:00`
@@ -219,6 +223,7 @@ export const useStatistics = (
       const hourCounts: { [hour: number]: number } = {};
       
       data?.forEach((item) => {
+        // Não filtrar blacklist aqui para manter distribuição geral de horários
         const hour = new Date(item.timestamp).getHours();
         hourCounts[hour] = (hourCounts[hour] || 0) + 1;
       });

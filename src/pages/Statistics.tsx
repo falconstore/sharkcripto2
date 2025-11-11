@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStatistics, Period } from '@/hooks/useStatistics';
+import { usePreferences } from '@/hooks/usePreferences';
 import DashboardHeader from '@/components/DashboardHeader';
 import StatisticsFilters from '@/components/StatisticsFilters';
 import CrossingKPICards from '@/components/CrossingKPICards';
@@ -7,17 +8,20 @@ import CrossingTimeSeriesChart from '@/components/CrossingTimeSeriesChart';
 import CrossingRankingTable from '@/components/CrossingRankingTable';
 import CrossingHourDistribution from '@/components/CrossingHourDistribution';
 import { Button } from '@/components/ui/button';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 const Statistics = () => {
+  const navigate = useNavigate();
+  const { blacklist } = usePreferences();
   const [period, setPeriod] = useState<Period>('today');
   const [customStart, setCustomStart] = useState<Date | undefined>();
   const [customEnd, setCustomEnd] = useState<Date | undefined>();
   const [filterCoins, setFilterCoins] = useState<string[]>([]);
 
   const { kpiData, timeSeriesData, hourDistribution, coinRanking, loading, error, refetch } = 
-    useStatistics(period, customStart, customEnd);
+    useStatistics(period, customStart, customEnd, blacklist);
 
   const handleExport = () => {
     try {
@@ -50,6 +54,17 @@ const Statistics = () => {
       <DashboardHeader />
       
       <main className="container mx-auto px-4 py-6 space-y-6">
+        {/* Botão voltar */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate('/')}
+          className="mb-2"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Dashboard
+        </Button>
+
         {/* Header da página */}
         <div className="flex items-center justify-between">
           <div>
