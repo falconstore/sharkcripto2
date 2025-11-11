@@ -85,10 +85,21 @@ Deno.serve(async (req) => {
         const usdtPairs = new Map<string, FuturesTicker>();
         
         if (data.data && Array.isArray(data.data)) {
-          data.data.forEach(ticker => {
+          // Log dos primeiros registros para ver a estrutura
+          if (data.data.length > 0) {
+            console.log('📋 Amostra de dados de futuros (primeiro registro):');
+            console.log(JSON.stringify(data.data[0], null, 2));
+          }
+          
+          data.data.forEach((ticker, index) => {
             if (ticker.symbol.endsWith('_USDT')) {
               const baseSymbol = normalizeSymbol(ticker.symbol);
               usdtPairs.set(baseSymbol, ticker);
+              
+              // Log dos primeiros 3 pares para debug
+              if (index < 3) {
+                console.log(`Futures ${baseSymbol}: bid=${ticker.bidPrice}, ask=${ticker.askPrice}, last=${ticker.lastPrice}`);
+              }
             }
           });
         }
