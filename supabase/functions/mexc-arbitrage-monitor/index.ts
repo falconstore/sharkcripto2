@@ -27,7 +27,6 @@ interface FuturesTicker {
 const SPOT_TAKER_FEE = 0.10;
 const FUTURES_TAKER_FEE = 0.02;
 const MIN_VOLUME_USDT = 10000; // Reduzido para capturar mais oportunidades
-const MIN_SPREAD_NET = 0.01; // Spread mínimo líquido de 0.01%
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -117,6 +116,7 @@ Deno.serve(async (req) => {
       }
 
       let opportunitiesFound = 0;
+      let pairsProcessed = 0;
       const opportunities: any[] = [];
 
       // Processar cada par que existe em ambos os mercados (symbol agora é o baseSymbol: BTC, ETH, etc)
@@ -124,6 +124,8 @@ Deno.serve(async (req) => {
         const futuresTicker = futuresTickers.get(baseSymbol);
         
         if (!futuresTicker) return;
+        
+        pairsProcessed++;
 
         const spotBidPrice = parseFloat(spotTicker.bidPrice);
         const spotAskPrice = parseFloat(spotTicker.askPrice);
@@ -149,26 +151,25 @@ Deno.serve(async (req) => {
         const spreadGrossLong = ((futuresBidPrice - spotAskPrice) / spotAskPrice) * 100;
         const spreadNetLong = spreadGrossLong - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
-        if (spreadNetLong >= MIN_SPREAD_NET) {
-          opportunitiesFound++;
-          
-          opportunities.push({
-            pair_symbol: baseSymbol,
-            spot_bid_price: spotAskPrice,
-            spot_volume_24h: spotVolume,
-            futures_ask_price: futuresBidPrice,
-            futures_volume_24h: futuresVolume,
-            spread_gross_percent: spreadGrossLong,
-            spread_net_percent: spreadNetLong,
-            spot_taker_fee: SPOT_TAKER_FEE,
-            futures_taker_fee: FUTURES_TAKER_FEE,
-            is_active: true,
-            timestamp: new Date().toISOString()
-          });
+        // Capturar TODAS as oportunidades (incluindo negativas)
+        opportunitiesFound++;
+        
+        opportunities.push({
+          pair_symbol: baseSymbol,
+          spot_bid_price: spotAskPrice,
+          spot_volume_24h: spotVolume,
+          futures_ask_price: futuresBidPrice,
+          futures_volume_24h: futuresVolume,
+          spread_gross_percent: spreadGrossLong,
+          spread_net_percent: spreadNetLong,
+          spot_taker_fee: SPOT_TAKER_FEE,
+          futures_taker_fee: FUTURES_TAKER_FEE,
+          is_active: true,
+          timestamp: new Date().toISOString()
+        });
 
-          if (opportunitiesFound <= 10) {
-            console.log(`🔵 LONG ${baseSymbol}: ${spreadNetLong.toFixed(4)}% | Comprar Spot $${spotAskPrice} → Vender Fut $${futuresBidPrice}`);
-          }
+        if (opportunitiesFound <= 10) {
+          console.log(`🔵 LONG ${baseSymbol}: ${spreadNetLong.toFixed(4)}% | Spot Ask: $${spotAskPrice} | Fut Bid: $${futuresBidPrice}`);
         }
 
         // DIREÇÃO 2: SHORT SPOT + LONG FUTURES (Reverse Cash and Carry)
@@ -177,29 +178,30 @@ Deno.serve(async (req) => {
         const spreadGrossShort = ((spotBidPrice - futuresAskPrice) / futuresAskPrice) * 100;
         const spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
-        if (spreadNetShort >= MIN_SPREAD_NET) {
-          opportunitiesFound++;
-          
-          opportunities.push({
-            pair_symbol: baseSymbol,
-            spot_bid_price: spotBidPrice,
-            spot_volume_24h: spotVolume,
-            futures_ask_price: futuresAskPrice,
-            futures_volume_24h: futuresVolume,
-            spread_gross_percent: spreadGrossShort,
-            spread_net_percent: spreadNetShort,
-            spot_taker_fee: SPOT_TAKER_FEE,
-            futures_taker_fee: FUTURES_TAKER_FEE,
-            is_active: true,
-            timestamp: new Date().toISOString()
-          });
+        // Capturar TODAS as oportunidades (incluindo negativas)
+        opportunitiesFound++;
+        
+        opportunities.push({
+          pair_symbol: baseSymbol,
+          spot_bid_price: spotBidPrice,
+          spot_volume_24h: spotVolume,
+          futures_ask_price: futuresAskPrice,
+          futures_volume_24h: futuresVolume,
+          spread_gross_percent: spreadGrossShort,
+          spread_net_percent: spreadNetShort,
+          spot_taker_fee: SPOT_TAKER_FEE,
+          futures_taker_fee: FUTURES_TAKER_FEE,
+          is_active: true,
+          timestamp: new Date().toISOString()
+        });
 
-          if (opportunitiesFound <= 10) {
-            console.log(`🔴 SHORT ${baseSymbol}: ${spreadNetShort.toFixed(4)}% | Vender Spot $${spotBidPrice} → Comprar Fut $${futuresAskPrice}`);
-          }
+        if (opportunitiesFound <= 10) {
+          console.log(`🔴 SHORT ${baseSymbol}: ${spreadNetShort.toFixed(4)}% | Spot Bid: $${spotBidPrice} | Fut Ask: $${futuresAskPrice}`);
         }
       });
 
+      console.log(`\n📊 Pares processados: ${pairsProcessed} | Oportunidades encontradas: ${opportunitiesFound}`);
+      
       // Inserir todas as oportunidades no banco
       if (opportunities.length > 0) {
         const { error } = await supabase
@@ -212,10 +214,8 @@ Deno.serve(async (req) => {
           console.log(`✅ Inserted ${opportunities.length} opportunities into database`);
         }
       } else {
-        console.log('⚠️ No profitable opportunities found in this cycle');
+        console.log('⚠️ No opportunities found in this cycle');
       }
-
-      console.log(`📊 Total opportunities: ${opportunitiesFound}/${spotTickers.size} pairs`);
     };
 
     // Executar processamento
