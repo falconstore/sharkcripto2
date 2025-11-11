@@ -79,7 +79,12 @@ serve(async (req) => {
       // CRÍTICO: Só processar se existir em AMBOS os mercados (Spot E Futures)
       if (!futures) {
         missingInFutures++;
-        continue;
+        continue; // Pula se não existir em Futures
+      }
+      
+      // Validação adicional: garantir que o contrato Futures realmente existe
+      if (!futures.lastPrice || futures.lastPrice <= 0) {
+        continue; // Pula se o preço do Futures for inválido
       }
 
       const spotBidPrice = parseFloat(spot.price);
