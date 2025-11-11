@@ -2,3 +2,9 @@ project_id = "jschuymzkukzthesevoy"
 
 [functions.cleanup-opportunities]
 verify_jwt = false
+
+[functions.mexc-account-balance]
+verify_jwt = true
+
+[functions.mexc-trading-executor]
+verify_jwt = true
