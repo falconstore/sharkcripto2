@@ -18,8 +18,8 @@ interface SpotTicker {
 interface FuturesTicker {
   symbol: string;
   lastPrice: string;
-  bidPrice: string;
-  askPrice: string;
+  bid1: string;
+  ask1: string;
   volume24: string;
 }
 
@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
               
               // Log dos primeiros 3 pares para debug
               if (index < 3) {
-                console.log(`Futures ${baseSymbol}: bid=${ticker.bidPrice}, ask=${ticker.askPrice}, last=${ticker.lastPrice}`);
+                console.log(`Futures ${baseSymbol}: bid1=${ticker.bid1}, ask1=${ticker.ask1}, last=${ticker.lastPrice}`);
               }
             }
           });
@@ -143,8 +143,8 @@ Deno.serve(async (req) => {
         const spotBidPrice = parseFloat(spotTicker.bidPrice);
         const spotAskPrice = parseFloat(spotTicker.askPrice);
         const spotVolume = parseFloat(spotTicker.quoteVolume);
-        const futuresBidPrice = parseFloat(futuresTicker.bidPrice);
-        const futuresAskPrice = parseFloat(futuresTicker.askPrice);
+        const futuresBidPrice = parseFloat(futuresTicker.bid1);
+        const futuresAskPrice = parseFloat(futuresTicker.ask1);
         const futuresVolume = parseFloat(futuresTicker.volume24);
 
         // Validar dados
