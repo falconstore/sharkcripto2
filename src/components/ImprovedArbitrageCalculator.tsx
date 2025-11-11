@@ -8,11 +8,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Calculator, TrendingUp, TrendingDown, DollarSign, Play, Pause } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, DollarSign, Play, Pause, Save, History as HistoryIcon } from 'lucide-react';
 import { useOpportunities } from '@/hooks/useOpportunities';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
+import { useCalculationHistory } from '@/hooks/useCalculationHistory';
+import { usePriceHistory } from '@/hooks/usePriceHistory';
+import { Sparklines, SparklinesLine } from 'react-sparklines';
+import CalculationHistoryModal from './CalculationHistoryModal';
 
 const ImprovedArbitrageCalculator = () => {
   const { opportunities } = useOpportunities();
+  const { rate: taxaCambioAtual, source: exchangeSource } = useExchangeRate();
+  const { saveCalculation, history } = useCalculationHistory();
+  const { addPoint, getHistory } = usePriceHistory();
+  const [historyOpen, setHistoryOpen] = useState(false);
   
   // Estados básicos
   const [valorInvestido, setValorInvestido] = useState<string>('');
@@ -32,7 +41,6 @@ const ImprovedArbitrageCalculator = () => {
   const [varFech, setVarFech] = useState<number>(0);
   const [varTotal, setVarTotal] = useState<number>(0);
 
-  const taxaCambioAtual = 5.70;
   const TAXA = 0.001; // 0.1%
 
   // Oportunidade selecionada
@@ -40,15 +48,20 @@ const ImprovedArbitrageCalculator = () => {
     return opportunities.find(o => o.pair_symbol === selectedPair);
   }, [opportunities, selectedPair]);
 
+  // Adicionar pontos ao histórico de spread
+  useEffect(() => {
+    if (selectedOpp) {
+      addPoint(selectedOpp.pair_symbol, selectedOpp.spread_net_percent);
+    }
+  }, [selectedOpp, addPoint]);
+
   // Acompanhamento automático de saída
   useEffect(() => {
     if (selectedOpp && trackingActive) {
       const interval = setInterval(() => {
-        // Atualizar preços de saída em tempo real
         setFechamentoSpot(selectedOpp.spot_bid_price.toString());
         setFechamentoFuturo(selectedOpp.futures_ask_price.toString());
         
-        // Recalcular automaticamente
         calcular(
           parseFloat(valorInvestido) || 0,
           parseFloat(entradaSpot) || 0,
@@ -56,7 +69,7 @@ const ImprovedArbitrageCalculator = () => {
           selectedOpp.spot_bid_price,
           selectedOpp.futures_ask_price
         );
-      }, 3000);
+      }, 1000);
       
       return () => clearInterval(interval);
     }
@@ -140,10 +153,20 @@ const ImprovedArbitrageCalculator = () => {
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <Card className="border-0 shadow-none">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calculator className="w-5 h-5 text-gold" />
-              Calculadora de Arbitragem Avançada
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Calculator className="w-5 h-5 text-gold" />
+                Calculadora de Arbitragem Avançada
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setHistoryOpen(true)}
+              >
+                <HistoryIcon className="w-4 h-4 mr-2" />
+                Histórico ({history?.length || 0})
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Grid Principal: Inputs | Live Data */}
@@ -174,16 +197,11 @@ const ImprovedArbitrageCalculator = () => {
                       <SelectValue placeholder="Escolha uma oportunidade para ver dados ao vivo..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {opportunities.map((opp) => (
-                        <SelectItem key={opp.pair_symbol} value={opp.pair_symbol}>
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="font-mono">{opp.pair_symbol}</span>
-                            <Badge variant="outline" className={opp.spread_net_percent > 0 ? 'bg-profit/10 text-profit' : 'bg-destructive/10 text-destructive'}>
-                              {opp.spread_net_percent.toFixed(4)}%
-                            </Badge>
-                          </div>
-                        </SelectItem>
-                      ))}
+                  {opportunities.map((opp) => (
+                    <SelectItem key={opp.pair_symbol} value={opp.pair_symbol}>
+                      <span className="font-mono">{opp.pair_symbol}</span>
+                    </SelectItem>
+                  ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -287,6 +305,29 @@ const ImprovedArbitrageCalculator = () => {
                     <Calculator className="w-4 h-4 mr-2" />
                     {trackingActive ? 'Calculando...' : 'Calcular'}
                   </Button>
+                  <Button 
+                    onClick={() => {
+                      saveCalculation({
+                        pair_symbol: selectedPair || null,
+                        valor_investido: parseFloat(valorInvestido) || 0,
+                        entrada_spot: parseFloat(entradaSpot) || 0,
+                        entrada_futuro: parseFloat(entradaFuturo) || 0,
+                        fechamento_spot: parseFloat(fechamentoSpot) || null,
+                        fechamento_futuro: parseFloat(fechamentoFuturo) || null,
+                        lucro_usd: lucroUSD,
+                        lucro_brl: lucroBRL,
+                        var_entrada: varEntrada,
+                        var_fechamento: varFech,
+                        var_total: varTotal,
+                        exchange_rate: taxaCambioAtual
+                      });
+                    }}
+                    variant="outline"
+                    disabled={lucroUSD === 0}
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Salvar
+                  </Button>
                   <Button onClick={limpar} variant="outline">
                     Limpar
                   </Button>
@@ -345,6 +386,26 @@ const ImprovedArbitrageCalculator = () => {
                         </CardContent>
                       </Card>
 
+                      {/* Sparkline de Spread */}
+                      {(() => {
+                        const sparklineData = getHistory(selectedPair, 5);
+                        return sparklineData.length > 10 ? (
+                          <Card className="bg-accent/30 border-border">
+                            <CardContent className="p-4">
+                              <div className="text-xs text-muted-foreground mb-2">
+                                Spread (últimos 5 min)
+                              </div>
+                              <Sparklines data={sparklineData.map(p => p.spread)} height={40}>
+                                <SparklinesLine 
+                                  color={spreadEntrada > 0 ? '#22c55e' : '#ef4444'} 
+                                  style={{ strokeWidth: 2 }}
+                                />
+                              </Sparklines>
+                            </CardContent>
+                          </Card>
+                        ) : null;
+                      })()}
+
                       <div className="text-center">
                         <Badge 
                           variant="outline" 
@@ -381,7 +442,9 @@ const ImprovedArbitrageCalculator = () => {
 
                   <Card className={`${lucroBRL >= 0 ? 'bg-profit/5 border-profit/20' : 'bg-destructive/5 border-destructive/20'}`}>
                     <CardContent className="p-4 text-center">
-                      <div className="text-xs text-muted-foreground mb-2">Lucro em BRL (R$ {taxaCambioAtual.toFixed(2)})</div>
+                      <div className="text-xs text-muted-foreground mb-2">
+                        Lucro em BRL (R$ {taxaCambioAtual.toFixed(2)} - {exchangeSource})
+                      </div>
                       <div className={`text-3xl font-bold font-mono ${lucroBRL >= 0 ? 'text-profit' : 'text-destructive'}`}>
                         R$ {lucroBRL.toFixed(2)}
                       </div>
@@ -423,6 +486,20 @@ const ImprovedArbitrageCalculator = () => {
           </CardContent>
         </Card>
       </DialogContent>
+
+      <CalculationHistoryModal
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        onLoadCalculation={(calc) => {
+          setSelectedPair(calc.pair_symbol || '');
+          setValorInvestido(calc.valor_investido.toString());
+          setEntradaSpot(calc.entrada_spot.toString());
+          setEntradaFuturo(calc.entrada_futuro.toString());
+          if (calc.fechamento_spot) setFechamentoSpot(calc.fechamento_spot.toString());
+          if (calc.fechamento_futuro) setFechamentoFuturo(calc.fechamento_futuro.toString());
+          calcular();
+        }}
+      />
     </Dialog>
   );
 };

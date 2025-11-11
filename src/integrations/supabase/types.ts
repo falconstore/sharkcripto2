@@ -62,6 +62,60 @@ export type Database = {
         }
         Relationships: []
       }
+      calculation_history: {
+        Row: {
+          created_at: string | null
+          entrada_futuro: number
+          entrada_spot: number
+          exchange_rate: number
+          fechamento_futuro: number | null
+          fechamento_spot: number | null
+          id: string
+          lucro_brl: number
+          lucro_usd: number
+          pair_symbol: string | null
+          user_id: string
+          valor_investido: number
+          var_entrada: number
+          var_fechamento: number
+          var_total: number
+        }
+        Insert: {
+          created_at?: string | null
+          entrada_futuro: number
+          entrada_spot: number
+          exchange_rate: number
+          fechamento_futuro?: number | null
+          fechamento_spot?: number | null
+          id?: string
+          lucro_brl: number
+          lucro_usd: number
+          pair_symbol?: string | null
+          user_id: string
+          valor_investido: number
+          var_entrada: number
+          var_fechamento: number
+          var_total: number
+        }
+        Update: {
+          created_at?: string | null
+          entrada_futuro?: number
+          entrada_spot?: number
+          exchange_rate?: number
+          fechamento_futuro?: number | null
+          fechamento_spot?: number | null
+          id?: string
+          lucro_brl?: number
+          lucro_usd?: number
+          pair_symbol?: string | null
+          user_id?: string
+          valor_investido?: number
+          var_entrada?: number
+          var_fechamento?: number
+          var_total?: number
+        }
+        Relationships: []
+      }
       pair_crossings: {
         Row: {
           created_at: string | null
@@ -110,6 +164,36 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      spread_alerts: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          pair_symbol: string
+          target_spread: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          pair_symbol: string
+          target_spread: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          pair_symbol?: string
+          target_spread?: number
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
