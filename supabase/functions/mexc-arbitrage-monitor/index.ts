@@ -55,11 +55,17 @@ Deno.serve(async (req) => {
         
         const data: SpotTicker[] = await response.json();
         const usdtPairs = new Map<string, SpotTicker>();
+        const targetPairs = ['RAIL', 'BAGWORK', 'ORE', 'BOBBSC'];
         
         data.forEach(ticker => {
           if (ticker.symbol.endsWith('USDT')) {
             const baseSymbol = normalizeSymbol(ticker.symbol);
             usdtPairs.set(baseSymbol, ticker);
+            
+            // Log moedas específicas encontradas no SPOT
+            if (targetPairs.includes(baseSymbol)) {
+              console.log(`✅ SPOT encontrado: ${baseSymbol} (${ticker.symbol})`);
+            }
           }
         });
         
@@ -82,23 +88,30 @@ Deno.serve(async (req) => {
         
         const data: { data: FuturesTicker[] } = await response.json();
         const usdtPairs = new Map<string, FuturesTicker>();
+        const targetPairs = ['RAIL', 'BAGWORK', 'ORE', 'BOBBSC'];
         
         if (data.data && Array.isArray(data.data)) {
-          // Log dos primeiros registros para ver a estrutura
-          if (data.data.length > 0) {
-            console.log('📋 Amostra de dados de futuros (primeiro registro):');
-            console.log(JSON.stringify(data.data[0], null, 2));
-          }
-          
           data.data.forEach((ticker, index) => {
             if (ticker.symbol.endsWith('_USDT')) {
               const baseSymbol = normalizeSymbol(ticker.symbol);
               usdtPairs.set(baseSymbol, ticker);
               
+              // Log moedas específicas encontradas em FUTUROS
+              if (targetPairs.includes(baseSymbol)) {
+                console.log(`✅ FUTUROS encontrado: ${baseSymbol} (${ticker.symbol})`);
+              }
+              
               // Log dos primeiros 3 pares para debug
               if (index < 3) {
                 console.log(`Futures ${baseSymbol}: bid1=${ticker.bid1}, ask1=${ticker.ask1}, last=${ticker.lastPrice}`);
               }
+            }
+          });
+          
+          // Verificar quais das moedas alvo NÃO estão em futuros
+          targetPairs.forEach(symbol => {
+            if (!usdtPairs.has(symbol)) {
+              console.log(`❌ ${symbol} NÃO EXISTE em FUTUROS - impossível arbitragem`);
             }
           });
         }
