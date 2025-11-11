@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Play, Square, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const StartMonitoringButton = () => {
   const [isRunning, setIsRunning] = useState(false);
@@ -11,24 +12,18 @@ const StartMonitoringButton = () => {
     setIsStarting(true);
     
     try {
-      const response = await fetch(
-        'https://jschuymzkukzthesevoy.supabase.co/functions/v1/mexc-arbitrage-monitor',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const { error } = await supabase.functions.invoke('mexc-arbitrage-monitor', {
+        method: 'POST'
+      });
 
-      if (response.ok) {
-        setIsRunning(true);
-        toast.success('Monitor de arbitragem iniciado!', {
-          description: 'Os dados começarão a aparecer em alguns segundos'
-        });
-      } else {
-        throw new Error('Falha ao iniciar monitor');
+      if (error) {
+        throw error;
       }
+
+      setIsRunning(true);
+      toast.success('Monitor de arbitragem iniciado!', {
+        description: 'Os dados começarão a aparecer em alguns segundos'
+      });
     } catch (error) {
       console.error('Error starting monitor:', error);
       toast.error('Erro ao iniciar monitor', {
