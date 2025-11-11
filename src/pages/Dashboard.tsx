@@ -6,7 +6,6 @@ import DashboardStats from '@/components/DashboardStats';
 import MonitoringStatus from '@/components/MonitoringStatus';
 import StartMonitoringButton from '@/components/StartMonitoringButton';
 import OpportunitiesTable from '@/components/OpportunitiesTable';
-import BlacklistPanel from '@/components/BlacklistPanel';
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -48,9 +47,6 @@ const Dashboard = () => {
 
         {/* Stats Cards */}
         <DashboardStats />
-
-        {/* Painel de Blacklist */}
-        <BlacklistPanel />
 
         {/* Tabela de Oportunidades */}
         <OpportunitiesTable />
