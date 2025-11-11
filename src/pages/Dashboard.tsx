@@ -6,7 +6,6 @@ import DashboardStats from '@/components/DashboardStats';
 import MonitoringStatus from '@/components/MonitoringStatus';
 import StartMonitoringButton from '@/components/StartMonitoringButton';
 import OpportunitiesTable from '@/components/OpportunitiesTable';
-import ArbitrageHeatmap from '@/components/ArbitrageHeatmap';
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -48,9 +47,6 @@ const Dashboard = () => {
 
         {/* Stats Cards */}
         <DashboardStats />
-
-        {/* Heatmap */}
-        <ArbitrageHeatmap />
 
         {/* Tabela de Oportunidades */}
         <OpportunitiesTable />
