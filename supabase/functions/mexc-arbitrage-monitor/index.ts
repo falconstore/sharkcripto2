@@ -119,13 +119,18 @@ Deno.serve(async (req) => {
         
         if (!futuresTicker) return;
 
-        const spotBidPrice = parseFloat(spotTicker.bidPrice);
+        // ARBITRAGEM CORRETA:
+        // 1. COMPRAR SPOT (pagar askPrice)
+        // 2. ABRIR SHORT FUTURES (receber bidPrice)
+        // 3. Lucro = (Futures Bid - Spot Ask) / Spot Ask
+        
+        const spotAskPrice = parseFloat(spotTicker.askPrice);
         const spotVolume = parseFloat(spotTicker.quoteVolume);
-        const futuresAskPrice = parseFloat(futuresTicker.askPrice);
+        const futuresBidPrice = parseFloat(futuresTicker.bidPrice);
         const futuresVolume = parseFloat(futuresTicker.volume24);
 
         // Validar dados
-        if (!spotBidPrice || !futuresAskPrice || spotBidPrice <= 0 || futuresAskPrice <= 0) {
+        if (!spotAskPrice || !futuresBidPrice || spotAskPrice <= 0 || futuresBidPrice <= 0) {
           return;
         }
 
@@ -134,19 +139,19 @@ Deno.serve(async (req) => {
           return;
         }
 
-        // Calcular spread
-        const spreadGross = ((futuresAskPrice - spotBidPrice) / spotBidPrice) * 100;
+        // Calcular spread (Futures Bid - Spot Ask)
+        const spreadGross = ((futuresBidPrice - spotAskPrice) / spotAskPrice) * 100;
         const spreadNet = spreadGross - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
-        // Apenas spreads positivos
+        // Apenas spreads positivos (lucro na entrada)
         if (spreadNet > 0) {
           opportunitiesFound++;
           
           opportunities.push({
             pair_symbol: symbol,
-            spot_bid_price: spotBidPrice,
+            spot_bid_price: spotAskPrice, // Guardando como spot_bid mas é o askPrice
             spot_volume_24h: spotVolume,
-            futures_ask_price: futuresAskPrice,
+            futures_ask_price: futuresBidPrice, // Guardando como futures_ask mas é o bidPrice
             futures_volume_24h: futuresVolume,
             spread_gross_percent: spreadGross,
             spread_net_percent: spreadNet,
@@ -157,7 +162,7 @@ Deno.serve(async (req) => {
           });
 
           if (opportunitiesFound <= 5) {
-            console.log(`💰 ${symbol}: ${spreadNet.toFixed(4)}% | Spot: $${spotBidPrice} | Futures: $${futuresAskPrice}`);
+            console.log(`💰 ${symbol}: ${spreadNet.toFixed(4)}% | Comprar Spot: $${spotAskPrice} | Vender Futures: $${futuresBidPrice}`);
           }
         }
       });
