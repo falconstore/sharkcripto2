@@ -26,7 +26,6 @@ interface FuturesTicker {
 // Taxas da MEXC (em %)
 const SPOT_TAKER_FEE = 0.10;
 const FUTURES_TAKER_FEE = 0.02;
-const MIN_VOLUME_USDT = 10000; // Reduzido para capturar mais oportunidades
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -157,15 +156,6 @@ Deno.serve(async (req) => {
         }
 
         pairsWithValidPrices++;
-
-        // Filtro de liquidez
-        if (spotVolume < MIN_VOLUME_USDT || futuresVolume < MIN_VOLUME_USDT) {
-          if (pairsProcessed <= 5) {
-            console.log(`❌ ${baseSymbol} - Volume baixo: spot=${spotVolume}, futures=${futuresVolume}`);
-          }
-          return;
-        }
-
         pairsWithValidVolume++;
 
         // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry)
