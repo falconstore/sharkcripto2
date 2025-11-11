@@ -158,62 +158,41 @@ Deno.serve(async (req) => {
         pairsWithValidPrices++;
         pairsWithValidVolume++;
 
-        // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry)
+        // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry) - ENTRADA
         // Comprar Spot (pagar askPrice) + Vender Futures/Short (receber bidPrice)
         // Lucro = (Futures Bid - Spot Ask) / Spot Ask - taxas
         const spreadGrossLong = ((futuresBidPrice - spotAskPrice) / spotAskPrice) * 100;
         const spreadNetLong = spreadGrossLong - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
-        // Capturar TODAS as oportunidades (incluindo negativas)
-        opportunitiesFound++;
-        
-        const oppLong = {
-          pair_symbol: baseSymbol,
-          spot_bid_price: spotAskPrice,
-          spot_volume_24h: spotVolume,
-          futures_ask_price: futuresBidPrice,
-          futures_volume_24h: futuresVolume,
-          spread_gross_percent: spreadGrossLong,
-          spread_net_percent: spreadNetLong,
-          spot_taker_fee: SPOT_TAKER_FEE,
-          futures_taker_fee: FUTURES_TAKER_FEE,
-          is_active: true,
-          timestamp: new Date().toISOString()
-        };
-        
-        opportunities.push(oppLong);
-
-        if (opportunitiesFound <= 5) {
-          console.log(`🔵 LONG ${baseSymbol}: Net=${spreadNetLong.toFixed(4)}% | Spot Ask=$${spotAskPrice.toFixed(8)} | Fut Bid=$${futuresBidPrice.toFixed(8)}`);
-        }
-
-        // DIREÇÃO 2: SHORT SPOT + LONG FUTURES (Reverse Cash and Carry)
+        // DIREÇÃO 2: SHORT SPOT + LONG FUTURES (Reverse Cash and Carry) - SAÍDA
         // Vender Spot (receber bidPrice) + Comprar Futures/Long (pagar askPrice)
         // Lucro = (Spot Bid - Futures Ask) / Futures Ask - taxas
         const spreadGrossShort = ((spotBidPrice - futuresAskPrice) / futuresAskPrice) * 100;
         const spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
-        // Capturar TODAS as oportunidades (incluindo negativas)
+        // Combinar ambas as direções em uma única oportunidade
         opportunitiesFound++;
         
-        const oppShort = {
+        const opp = {
           pair_symbol: baseSymbol,
           spot_bid_price: spotBidPrice,
           spot_volume_24h: spotVolume,
           futures_ask_price: futuresAskPrice,
           futures_volume_24h: futuresVolume,
-          spread_gross_percent: spreadGrossShort,
-          spread_net_percent: spreadNetShort,
+          spread_gross_percent: spreadGrossLong,
+          spread_net_percent: spreadNetLong, // Mantém compatibilidade (usa entrada)
+          spread_net_percent_entrada: spreadNetLong,
+          spread_net_percent_saida: spreadNetShort,
           spot_taker_fee: SPOT_TAKER_FEE,
           futures_taker_fee: FUTURES_TAKER_FEE,
           is_active: true,
           timestamp: new Date().toISOString()
         };
         
-        opportunities.push(oppShort);
+        opportunities.push(opp);
 
         if (opportunitiesFound <= 5) {
-          console.log(`🔴 SHORT ${baseSymbol}: Net=${spreadNetShort.toFixed(4)}% | Spot Bid=$${spotBidPrice.toFixed(8)} | Fut Ask=$${futuresAskPrice.toFixed(8)}`);
+          console.log(`💰 ${baseSymbol}: Entrada=${spreadNetLong.toFixed(4)}% | Saída=${spreadNetShort.toFixed(4)}%`);
         }
       });
 

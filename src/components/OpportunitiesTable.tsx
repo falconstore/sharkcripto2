@@ -132,10 +132,11 @@ const OpportunitiesTable = () => {
                     onClick={() => handleSort('spread_net_percent')}
                     className="font-semibold"
                   >
-                    Spread Líquido %
+                    Entrada %
                     <ArrowUpDown className="ml-2 w-4 h-4" />
                   </Button>
                 </TableHead>
+                <TableHead>Saída %</TableHead>
                 <TableHead>Preço Spot (Compra)</TableHead>
                 <TableHead>Preço Futuros (Venda)</TableHead>
                 <TableHead>Volume 24h (Spot / Futuro)</TableHead>
@@ -145,7 +146,7 @@ const OpportunitiesTable = () => {
             <TableBody>
               {filteredAndSorted.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     {search ? 'Nenhuma oportunidade encontrada' : 'Aguardando dados...'}
                   </TableCell>
                 </TableRow>
@@ -176,8 +177,21 @@ const OpportunitiesTable = () => {
                         {opp.pair_symbol}
                       </TableCell>
                       <TableCell>
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-gold/10 text-gold border border-gold/20 animate-pulse-gold">
-                          {formatNumber(opp.spread_net_percent, 4)}%
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
+                          opp.spread_net_percent_entrada >= 0 
+                            ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
+                            : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                        }`}>
+                          {formatNumber(opp.spread_net_percent_entrada, 4)}%
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
+                          opp.spread_net_percent_saida >= 0 
+                            ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
+                            : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                        }`}>
+                          {formatNumber(opp.spread_net_percent_saida, 4)}%
                         </span>
                       </TableCell>
                       <TableCell className="font-mono">

@@ -9,6 +9,8 @@ export interface Opportunity {
   futures_volume_24h: number;
   spread_gross_percent: number;
   spread_net_percent: number;
+  spread_net_percent_entrada: number; // LONG: Comprar Spot + Vender Futures
+  spread_net_percent_saida: number;   // SHORT: Vender Spot + Comprar Futures
   spot_taker_fee: number;
   futures_taker_fee: number;
   timestamp: string;
