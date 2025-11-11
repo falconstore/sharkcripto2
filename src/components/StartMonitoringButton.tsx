@@ -7,22 +7,36 @@ import { supabase } from '@/integrations/supabase/client';
 const StartMonitoringButton = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [intervalId, setIntervalId] = useState<number | null>(null);
 
-  const startMonitoring = async () => {
-    setIsStarting(true);
-    
+  const callMonitor = async () => {
     try {
       const { error } = await supabase.functions.invoke('mexc-arbitrage-monitor', {
         method: 'POST'
       });
 
       if (error) {
-        throw error;
+        console.error('Error calling monitor:', error);
       }
+    } catch (error) {
+      console.error('Error calling monitor:', error);
+    }
+  };
 
+  const startMonitoring = async () => {
+    setIsStarting(true);
+    
+    try {
+      // Primeira chamada imediata
+      await callMonitor();
+
+      // Configurar chamadas a cada 3 segundos
+      const id = window.setInterval(callMonitor, 3000);
+      setIntervalId(id);
       setIsRunning(true);
+      
       toast.success('Monitor de arbitragem iniciado!', {
-        description: 'Os dados começarão a aparecer em alguns segundos'
+        description: 'Atualizando a cada 3 segundos'
       });
     } catch (error) {
       console.error('Error starting monitor:', error);
@@ -35,6 +49,10 @@ const StartMonitoringButton = () => {
   };
 
   const stopMonitoring = () => {
+    if (intervalId) {
+      window.clearInterval(intervalId);
+      setIntervalId(null);
+    }
     setIsRunning(false);
     toast.info('Monitor parado', {
       description: 'O monitoramento foi interrompido'

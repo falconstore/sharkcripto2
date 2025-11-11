@@ -180,25 +180,13 @@ Deno.serve(async (req) => {
       console.log(`📊 Total opportunities: ${opportunitiesFound}/${spotTickers.size} pairs`);
     };
 
-    // Executar primeira vez imediatamente
+    // Executar processamento
     await processOpportunities();
-
-    // Loop contínuo a cada 2 segundos
-    const intervalId = setInterval(async () => {
-      try {
-        await processOpportunities();
-      } catch (error) {
-        console.error('Error in processing cycle:', error);
-      }
-    }, 2000);
-
-    // Manter a função rodando
-    await new Promise(() => {}); // Loop infinito
 
     return new Response(
       JSON.stringify({ 
-        message: 'MEXC Arbitrage Monitor started successfully',
-        status: 'running'
+        message: 'Dados processados com sucesso',
+        status: 'completed'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
