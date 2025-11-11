@@ -72,14 +72,17 @@ const MonitoringStatus = () => {
             {isMonitoring ? (
               <>
                 <div className="relative">
-                  <Wifi className="w-5 h-5 text-profit" />
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-profit rounded-full animate-pulse" />
+                  <Wifi className="w-6 h-6 text-profit drop-shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-profit rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold">Sistema Ativo</span>
-                    <Badge variant="outline" className="bg-profit/10 text-profit border-profit/20">
-                      Monitorando
+                    <Badge 
+                      variant="outline" 
+                      className="bg-profit/20 text-profit border-profit/30 animate-pulse font-semibold"
+                    >
+                      ● Monitorando
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -101,7 +104,7 @@ const MonitoringStatus = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <RefreshCw className={`w-4 h-4 ${isMonitoring ? 'animate-spin text-profit' : 'text-muted-foreground'}`} />
+            <RefreshCw className={`w-5 h-5 ${isMonitoring ? 'animate-spin text-profit drop-shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'text-muted-foreground'}`} />
           </div>
         </div>
       </CardContent>

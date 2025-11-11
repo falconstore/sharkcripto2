@@ -7,7 +7,7 @@ import DashboardStats from '@/components/DashboardStats';
 import MonitoringStatus from '@/components/MonitoringStatus';
 import StartMonitoringButton from '@/components/StartMonitoringButton';
 import OpportunitiesTable from '@/components/OpportunitiesTable';
-import ArbitrageCalculator from '@/components/ArbitrageCalculator';
+import ImprovedArbitrageCalculator from '@/components/ImprovedArbitrageCalculator';
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -45,7 +45,7 @@ const Dashboard = () => {
         {/* Botões de Ação */}
         <div className="flex justify-center gap-3">
           <StartMonitoringButton />
-          <ArbitrageCalculator />
+          <ImprovedArbitrageCalculator />
         </div>
 
         {/* Status do Monitoramento */}

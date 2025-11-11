@@ -1,17 +1,22 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
+import { usePreferences } from '@/hooks/usePreferences';
 import { Button } from '@/components/ui/button';
-import { Moon, Sun, LogOut, TrendingUp, BarChart3, Bell } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Moon, Sun, LogOut, TrendingUp, BarChart3, Bell, Ban } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useNavigate } from 'react-router-dom';
 import NotificationSettings from './NotificationSettings';
+import BlacklistManager from './BlacklistManager';
 
 const DashboardHeader = () => {
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { blacklist } = usePreferences();
   const navigate = useNavigate();
   const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
+  const [blacklistOpen, setBlacklistOpen] = useState(false);
 
   const getInitials = (email: string) => {
     return email.substring(0, 2).toUpperCase();
@@ -40,6 +45,21 @@ const DashboardHeader = () => {
             >
               <BarChart3 className="w-4 h-4 mr-2" />
               Estatísticas
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBlacklistOpen(true)}
+              className="hidden sm:flex relative"
+            >
+              <Ban className="w-4 h-4 mr-2" />
+              Blacklist
+              {blacklist.size > 0 && (
+                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {blacklist.size}
+                </Badge>
+              )}
             </Button>
 
             <Button
@@ -92,9 +112,14 @@ const DashboardHeader = () => {
         </div>
       </div>
 
-      <NotificationSettings
+      <NotificationSettings 
         open={notificationSettingsOpen}
         onOpenChange={setNotificationSettingsOpen}
+      />
+      
+      <BlacklistManager
+        open={blacklistOpen}
+        onOpenChange={setBlacklistOpen}
       />
     </header>
   );

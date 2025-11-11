@@ -1,8 +1,10 @@
-import { useState, useMemo } from 'react';
-import { useOpportunities } from '@/hooks/useOpportunities';
-import { usePreferences } from '@/hooks/usePreferences';
-import { useCrossings } from '@/hooks/useCrossings';
-import CrossingsHistoryModal from './CrossingsHistoryModal';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Star, Ban, TrendingUp, BarChart3, History, ChevronLeft, ChevronRight, Search, ArrowUpDown } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -11,13 +13,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Search, ArrowUpDown, TrendingUp, Star, Ban, History, BarChart3 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useOpportunities } from '@/hooks/useOpportunities';
+import { usePreferences } from '@/hooks/usePreferences';
+import { useCrossings } from '@/hooks/useCrossings';
+import CrossingsHistoryModal from './CrossingsHistoryModal';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
 
 type SortField = 'pair_symbol' | 'spread_net_percent' | 'spot_volume_24h' | 'futures_volume_24h';
 type SortOrder = 'asc' | 'desc';
@@ -32,6 +39,8 @@ const OpportunitiesTable = () => {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedPair, setSelectedPair] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   const filteredAndSorted = useMemo(() => {
     // Filtrar blacklist
@@ -69,6 +78,21 @@ const OpportunitiesTable = () => {
     // Favoritos sempre no topo
     return [...sortArray(favoritesArray), ...sortArray(nonFavoritesArray)];
   }, [opportunities, search, sortField, sortOrder, favorites, blacklist]);
+
+  // Paginação
+  const paginatedOpportunities = useMemo(() => {
+    if (itemsPerPage === 0) return filteredAndSorted; // "Todos"
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredAndSorted.slice(startIndex, endIndex);
+  }, [filteredAndSorted, currentPage, itemsPerPage]);
+
+  const totalPages = itemsPerPage === 0 ? 1 : Math.ceil(filteredAndSorted.length / itemsPerPage);
+
+  // Resetar para página 1 ao buscar/filtrar
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [search, sortField, sortOrder]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -164,22 +188,25 @@ const OpportunitiesTable = () => {
                 <TableHead>Preço Futuros (Venda)</TableHead>
                 <TableHead>Volume 24h (Spot / Futuro)</TableHead>
                 <TableHead className="w-[150px]">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredAndSorted.length === 0 ? (
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedOpportunities.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     {search ? 'Nenhuma oportunidade encontrada' : 'Aguardando dados...'}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredAndSorted.map((opp, index) => {
+                paginatedOpportunities.map((opp, index) => {
                   const isFavorite = favorites.has(opp.pair_symbol);
+                  const crossingsCount = getCrossingsForPair(opp.pair_symbol);
                   return (
                     <TableRow 
-                      key={opp.timestamp + opp.pair_symbol + index}
-                      className={`transition-all duration-300 hover:bg-accent/50 ${isFavorite ? 'bg-gold/5' : ''}`}
+                      key={opp.pair_symbol}
+                      className={`hover:bg-accent/80 hover:shadow-md cursor-pointer transition-all ${
+                        index % 2 === 0 ? 'bg-card' : 'bg-accent/20'
+                      }`}
                     >
                       <TableCell>
                         <Button
@@ -189,42 +216,59 @@ const OpportunitiesTable = () => {
                             toggleFavorite(opp.pair_symbol);
                             toast.success(isFavorite ? 'Removido dos favoritos' : 'Adicionado aos favoritos');
                           }}
-                          className="p-1 h-auto"
+                          className="h-8 w-8 p-0 hover:scale-110 transition-transform"
                         >
-                          <Star 
-                            className={`w-4 h-4 ${isFavorite ? 'fill-gold text-gold' : 'text-muted-foreground'}`}
-                          />
+                          <Star className={`w-5 h-5 ${isFavorite ? 'fill-gold text-gold drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]' : 'text-muted-foreground'}`} />
                         </Button>
                       </TableCell>
                       <TableCell className="font-mono font-semibold">
                         {opp.pair_symbol}
                       </TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
-                          opp.spread_net_percent_entrada >= 0 
-                            ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
-                            : 'bg-red-500/10 text-red-500 border border-red-500/20'
-                        }`}>
+                        <Badge 
+                          variant="outline"
+                          className={`font-mono font-semibold px-3 py-1 ${
+                            opp.spread_net_percent_entrada >= 0 
+                              ? 'bg-profit/20 text-profit border-profit/40 shadow-[0_0_10px_rgba(34,197,94,0.2)]' 
+                              : 'bg-destructive/20 text-destructive border-destructive/40'
+                          }`}
+                        >
                           {formatNumber(opp.spread_net_percent_entrada, 4)}%
-                        </span>
+                        </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
-                          opp.spread_net_percent_saida >= 0 
-                            ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
-                            : 'bg-red-500/10 text-red-500 border border-red-500/20'
-                        }`}>
+                        <Badge 
+                          variant="outline"
+                          className={`font-mono font-semibold px-3 py-1 ${
+                            opp.spread_net_percent_saida >= 0 
+                              ? 'bg-profit/20 text-profit border-profit/40 shadow-[0_0_10px_rgba(34,197,94,0.2)]' 
+                              : 'bg-destructive/20 text-destructive border-destructive/40'
+                          }`}
+                        >
                           {formatNumber(opp.spread_net_percent_saida, 4)}%
-                        </span>
+                        </Badge>
                       </TableCell>
                       <TableCell>
-                        {getCrossingsForPair(opp.pair_symbol) > 0 ? (
-                          <Badge variant="default" className="bg-green-600">
-                            {getCrossingsForPair(opp.pair_symbol)}x
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            variant="secondary" 
+                            className={`text-xs font-semibold px-2 py-1 ${
+                              crossingsCount > 0 ? 'bg-gold/20 text-gold border-gold/30' : ''
+                            }`}
+                          >
+                            {crossingsCount}
                           </Badge>
-                        ) : (
-                          <Badge variant="secondary">0</Badge>
-                        )}
+                          {crossingsCount > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenHistory(opp.pair_symbol)}
+                              className="h-6 w-6"
+                            >
+                              <History className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="font-mono">
                         ${formatNumber(opp.spot_bid_price, 8)}
@@ -239,28 +283,17 @@ const OpportunitiesTable = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenHistory(opp.pair_symbol)}
-                            className="h-8 w-8"
-                            title="Ver histórico de cruzamentos"
-                          >
-                            <History className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              toggleBlacklist(opp.pair_symbol);
-                              toast.info(`${opp.pair_symbol} adicionado à blacklist`);
-                            }}
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                          >
-                            <Ban className="w-4 h-4" />
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            toggleBlacklist(opp.pair_symbol);
+                            toast.info(`${opp.pair_symbol} adicionado à blacklist`);
+                          }}
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                        >
+                          <Ban className="w-4 h-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -269,6 +302,86 @@ const OpportunitiesTable = () => {
             </TableBody>
           </Table>
         </div>
+
+        {/* Paginação */}
+        {filteredAndSorted.length > 0 && (
+          <div className="border-t border-border mt-4 pt-4 space-y-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              {/* Info */}
+              <div className="text-sm text-muted-foreground">
+                Mostrando{' '}
+                <span className="font-semibold text-foreground">
+                  {itemsPerPage === 0 
+                    ? filteredAndSorted.length
+                    : Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSorted.length)
+                  }
+                </span>
+                {' '}-{' '}
+                <span className="font-semibold text-foreground">
+                  {itemsPerPage === 0 
+                    ? filteredAndSorted.length 
+                    : Math.min(currentPage * itemsPerPage, filteredAndSorted.length)
+                  }
+                </span>
+                {' '}de{' '}
+                <span className="font-semibold text-foreground">{filteredAndSorted.length}</span>
+                {' '}oportunidades
+              </div>
+
+              {/* Controles */}
+              <div className="flex items-center gap-4">
+                {/* Items por página */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Por página:</span>
+                  <Select
+                    value={itemsPerPage.toString()}
+                    onValueChange={(value) => {
+                      setItemsPerPage(Number(value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[100px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                      <SelectItem value="0">Todos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Navegação de páginas */}
+                {itemsPerPage > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    
+                    <div className="text-sm font-medium">
+                      Página {currentPage} de {totalPages}
+                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 flex justify-center">
           <Button

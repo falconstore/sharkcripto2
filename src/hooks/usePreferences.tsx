@@ -61,11 +61,18 @@ export const usePreferences = create<PreferencesStore>((set) => ({
   toggleBlacklist: (symbol) =>
     set((state) => {
       const newBlacklist = new Set(state.blacklist);
-      if (newBlacklist.has(symbol)) {
-        newBlacklist.delete(symbol);
-      } else {
+      const isAdding = !newBlacklist.has(symbol);
+      
+      if (isAdding) {
         newBlacklist.add(symbol);
+        // Limpar dados do banco ao adicionar à blacklist (assíncrono, mas não bloqueia)
+        import('@/lib/cleanupBlacklistedPair').then(({ cleanupBlacklistedPair }) => {
+          cleanupBlacklistedPair(symbol);
+        });
+      } else {
+        newBlacklist.delete(symbol);
       }
+      
       const newState = { ...state, blacklist: newBlacklist };
       savePreferences(newState);
       return { blacklist: newBlacklist };

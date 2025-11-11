@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { TrendingUp, Activity, DollarSign } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { usePreferences } from '@/hooks/usePreferences';
 
@@ -41,49 +42,79 @@ const DashboardStats = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift">
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-sm text-muted-foreground">Pares Monitorados</div>
-          <Activity className="w-5 h-5 text-primary" />
-        </div>
-        <div className="text-3xl font-bold">{stats.uniquePairs}</div>
-        <p className="text-xs text-muted-foreground mt-1">USDT pares ativos</p>
-      </div>
+    <TooltipProvider>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift hover:shadow-lg transition-all cursor-pointer">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-muted-foreground">Pares Monitorados</div>
+                <Activity className="w-6 h-6 text-primary drop-shadow-[0_0_8px_rgba(124,58,237,0.3)]" />
+              </div>
+              <div className="text-3xl font-bold animate-fade-in">{stats.uniquePairs}</div>
+              <p className="text-xs text-muted-foreground mt-1">USDT pares ativos</p>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Total de pares de trading USDT sendo monitorados no momento</p>
+          </TooltipContent>
+        </Tooltip>
 
-      <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift">
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-sm text-muted-foreground">Oportunidades Ativas</div>
-          <TrendingUp className="w-5 h-5 text-gold" />
-        </div>
-        <div className="text-3xl font-bold text-gold animate-pulse-gold">
-          {stats.activeOpportunities}
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">Últimos 5 minutos</p>
-      </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift hover:shadow-lg transition-all cursor-pointer">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-muted-foreground">Oportunidades Ativas</div>
+                <TrendingUp className="w-6 h-6 text-gold drop-shadow-[0_0_8px_rgba(255,215,0,0.4)]" />
+              </div>
+              <div className="text-3xl font-bold text-gold animate-pulse">
+                {stats.activeOpportunities}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Últimos 5 minutos</p>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Oportunidades com spread maior que 0.01% detectadas recentemente</p>
+          </TooltipContent>
+        </Tooltip>
 
-      <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift">
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-sm text-muted-foreground">Melhor Spread</div>
-          <TrendingUp className="w-5 h-5 text-profit" />
-        </div>
-        <div className="text-3xl font-bold text-profit">
-          {stats.bestSpread > 0 ? `${stats.bestSpread.toFixed(4)}%` : '--'}
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">Spread líquido máximo</p>
-      </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift hover:shadow-lg transition-all cursor-pointer">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-muted-foreground">Melhor Spread</div>
+                <TrendingUp className="w-6 h-6 text-profit drop-shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+              </div>
+              <div className="text-3xl font-bold text-profit animate-fade-in">
+                {stats.bestSpread > 0 ? `${stats.bestSpread.toFixed(4)}%` : '--'}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Spread líquido máximo</p>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Maior diferença percentual entre preços spot e futuros (após taxas)</p>
+          </TooltipContent>
+        </Tooltip>
 
-      <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift">
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-sm text-muted-foreground">Volume Total 24h</div>
-          <DollarSign className="w-5 h-5 text-primary" />
-        </div>
-        <div className="text-3xl font-bold">
-          {stats.totalVolume24h > 0 ? formatVolume(stats.totalVolume24h) : '--'}
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">Spot + Futuros combinados</p>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift hover:shadow-lg transition-all cursor-pointer">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-muted-foreground">Volume Total 24h</div>
+                <DollarSign className="w-6 h-6 text-primary drop-shadow-[0_0_8px_rgba(124,58,237,0.3)]" />
+              </div>
+              <div className="text-3xl font-bold animate-fade-in">
+                {stats.totalVolume24h > 0 ? formatVolume(stats.totalVolume24h) : '--'}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Spot + Futuros combinados</p>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Soma do volume de negociação nas últimas 24h (spot + futuros)</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
-    </div>
+    </TooltipProvider>
   );
 };
 
