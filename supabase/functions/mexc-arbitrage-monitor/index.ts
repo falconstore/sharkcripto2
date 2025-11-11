@@ -117,6 +117,8 @@ Deno.serve(async (req) => {
 
       let opportunitiesFound = 0;
       let pairsProcessed = 0;
+      let pairsWithValidPrices = 0;
+      let pairsWithValidVolume = 0;
       const opportunities: any[] = [];
 
       // Processar cada par que existe em ambos os mercados (symbol agora é o baseSymbol: BTC, ETH, etc)
@@ -137,13 +139,23 @@ Deno.serve(async (req) => {
         // Validar dados
         if (!spotBidPrice || !spotAskPrice || !futuresBidPrice || !futuresAskPrice ||
             spotBidPrice <= 0 || spotAskPrice <= 0 || futuresBidPrice <= 0 || futuresAskPrice <= 0) {
+          if (pairsProcessed <= 5) {
+            console.log(`❌ ${baseSymbol} - Preços inválidos: spot bid=${spotBidPrice}, ask=${spotAskPrice}, fut bid=${futuresBidPrice}, ask=${futuresAskPrice}`);
+          }
           return;
         }
 
+        pairsWithValidPrices++;
+
         // Filtro de liquidez
         if (spotVolume < MIN_VOLUME_USDT || futuresVolume < MIN_VOLUME_USDT) {
+          if (pairsProcessed <= 5) {
+            console.log(`❌ ${baseSymbol} - Volume baixo: spot=${spotVolume}, futures=${futuresVolume}`);
+          }
           return;
         }
+
+        pairsWithValidVolume++;
 
         // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry)
         // Comprar Spot (pagar askPrice) + Vender Futures/Short (receber bidPrice)
@@ -154,7 +166,7 @@ Deno.serve(async (req) => {
         // Capturar TODAS as oportunidades (incluindo negativas)
         opportunitiesFound++;
         
-        opportunities.push({
+        const oppLong = {
           pair_symbol: baseSymbol,
           spot_bid_price: spotAskPrice,
           spot_volume_24h: spotVolume,
@@ -166,10 +178,12 @@ Deno.serve(async (req) => {
           futures_taker_fee: FUTURES_TAKER_FEE,
           is_active: true,
           timestamp: new Date().toISOString()
-        });
+        };
+        
+        opportunities.push(oppLong);
 
-        if (opportunitiesFound <= 10) {
-          console.log(`🔵 LONG ${baseSymbol}: ${spreadNetLong.toFixed(4)}% | Spot Ask: $${spotAskPrice} | Fut Bid: $${futuresBidPrice}`);
+        if (opportunitiesFound <= 5) {
+          console.log(`🔵 LONG ${baseSymbol}: Net=${spreadNetLong.toFixed(4)}% | Spot Ask=$${spotAskPrice.toFixed(8)} | Fut Bid=$${futuresBidPrice.toFixed(8)}`);
         }
 
         // DIREÇÃO 2: SHORT SPOT + LONG FUTURES (Reverse Cash and Carry)
@@ -181,7 +195,7 @@ Deno.serve(async (req) => {
         // Capturar TODAS as oportunidades (incluindo negativas)
         opportunitiesFound++;
         
-        opportunities.push({
+        const oppShort = {
           pair_symbol: baseSymbol,
           spot_bid_price: spotBidPrice,
           spot_volume_24h: spotVolume,
@@ -193,28 +207,42 @@ Deno.serve(async (req) => {
           futures_taker_fee: FUTURES_TAKER_FEE,
           is_active: true,
           timestamp: new Date().toISOString()
-        });
+        };
+        
+        opportunities.push(oppShort);
 
-        if (opportunitiesFound <= 10) {
-          console.log(`🔴 SHORT ${baseSymbol}: ${spreadNetShort.toFixed(4)}% | Spot Bid: $${spotBidPrice} | Fut Ask: $${futuresAskPrice}`);
+        if (opportunitiesFound <= 5) {
+          console.log(`🔴 SHORT ${baseSymbol}: Net=${spreadNetShort.toFixed(4)}% | Spot Bid=$${spotBidPrice.toFixed(8)} | Fut Ask=$${futuresAskPrice.toFixed(8)}`);
         }
       });
 
-      console.log(`\n📊 Pares processados: ${pairsProcessed} | Oportunidades encontradas: ${opportunitiesFound}`);
+      console.log(`\n📊 Resumo do processamento:`);
+      console.log(`   - Pares totais processados: ${pairsProcessed}`);
+      console.log(`   - Pares com preços válidos: ${pairsWithValidPrices}`);
+      console.log(`   - Pares com volume adequado: ${pairsWithValidVolume}`);
+      console.log(`   - Oportunidades criadas: ${opportunitiesFound}`);
+      console.log(`   - Registros para inserir: ${opportunities.length}`);
       
       // Inserir todas as oportunidades no banco
       if (opportunities.length > 0) {
-        const { error } = await supabase
+        console.log(`\n💾 Inserindo ${opportunities.length} oportunidades no banco...`);
+        
+        const { data, error } = await supabase
           .from('arbitrage_opportunities')
-          .insert(opportunities);
+          .insert(opportunities)
+          .select();
 
         if (error) {
           console.error('❌ Error inserting opportunities:', error);
+          console.error('Error details:', JSON.stringify(error, null, 2));
         } else {
-          console.log(`✅ Inserted ${opportunities.length} opportunities into database`);
+          console.log(`✅ Inserted ${opportunities.length} opportunities successfully`);
+          if (data && data.length > 0) {
+            console.log(`✅ First inserted record:`, data[0]);
+          }
         }
       } else {
-        console.log('⚠️ No opportunities found in this cycle');
+        console.log('⚠️ No opportunities to insert (array vazio)');
       }
     };
 
