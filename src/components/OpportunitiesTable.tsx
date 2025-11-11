@@ -113,34 +113,34 @@ const OpportunitiesTable = () => {
           <Table>
             <TableHeader>
               <TableRow className="bg-primary/5">
-                <TableHead className="w-[50px]"></TableHead>
-                <TableHead>
+                <TableHead className="w-[40px]"></TableHead>
+                <TableHead className="w-[120px]">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleSort('pair_symbol')}
-                    className="font-semibold"
+                    className="font-semibold h-8 px-2"
                   >
                     Par
-                    <ArrowUpDown className="ml-2 w-4 h-4" />
+                    <ArrowUpDown className="ml-1 w-3 h-3" />
                   </Button>
                 </TableHead>
-                <TableHead>
+                <TableHead className="w-[100px]">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleSort('spread_net_percent')}
-                    className="font-semibold"
+                    className="font-semibold h-8 px-2"
                   >
                     Entrada %
-                    <ArrowUpDown className="ml-2 w-4 h-4" />
+                    <ArrowUpDown className="ml-1 w-3 h-3" />
                   </Button>
                 </TableHead>
-                <TableHead>Saída %</TableHead>
-                <TableHead>Preço Spot (Compra)</TableHead>
-                <TableHead>Preço Futuros (Venda)</TableHead>
-                <TableHead>Volume 24h (Spot / Futuro)</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
+                <TableHead className="w-[100px]">Saída %</TableHead>
+                <TableHead className="w-[120px]">Spot</TableHead>
+                <TableHead className="w-[120px]">Futuros</TableHead>
+                <TableHead className="w-[140px]">Vol 24h</TableHead>
+                <TableHead className="w-[40px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -158,7 +158,7 @@ const OpportunitiesTable = () => {
                       key={opp.timestamp + opp.pair_symbol + index}
                       className={`transition-all duration-300 hover:bg-accent/50 ${isFavorite ? 'bg-gold/5' : ''}`}
                     >
-                      <TableCell>
+                      <TableCell className="py-2">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -166,47 +166,47 @@ const OpportunitiesTable = () => {
                             toggleFavorite(opp.pair_symbol);
                             toast.success(isFavorite ? 'Removido dos favoritos' : 'Adicionado aos favoritos');
                           }}
-                          className="p-1 h-auto"
+                          className="p-0 h-auto w-8"
                         >
                           <Star 
                             className={`w-4 h-4 ${isFavorite ? 'fill-gold text-gold' : 'text-muted-foreground'}`}
                           />
                         </Button>
                       </TableCell>
-                      <TableCell className="font-mono font-semibold">
+                      <TableCell className="font-mono font-semibold text-sm py-2">
                         {opp.pair_symbol}
                       </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
+                      <TableCell className="py-2">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
                           opp.spread_net_percent_entrada >= 0 
-                            ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
-                            : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                            ? 'bg-green-500/10 text-green-500' 
+                            : 'bg-red-500/10 text-red-500'
                         }`}>
                           {formatNumber(opp.spread_net_percent_entrada, 4)}%
                         </span>
                       </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
+                      <TableCell className="py-2">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
                           opp.spread_net_percent_saida >= 0 
-                            ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
-                            : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                            ? 'bg-green-500/10 text-green-500' 
+                            : 'bg-red-500/10 text-red-500'
                         }`}>
                           {formatNumber(opp.spread_net_percent_saida, 4)}%
                         </span>
                       </TableCell>
-                      <TableCell className="font-mono">
-                        ${formatNumber(opp.spot_bid_price, 8)}
+                      <TableCell className="font-mono text-xs py-2">
+                        ${formatNumber(opp.spot_bid_price, 6)}
                       </TableCell>
-                      <TableCell className="font-mono">
-                        ${formatNumber(opp.futures_ask_price, 8)}
+                      <TableCell className="font-mono text-xs py-2">
+                        ${formatNumber(opp.futures_ask_price, 6)}
                       </TableCell>
-                      <TableCell className="font-mono text-sm">
+                      <TableCell className="font-mono text-xs py-2">
                         <div className="flex flex-col gap-0.5">
-                          <span>{formatVolume(opp.spot_volume_24h)}</span>
-                          <span className="text-muted-foreground">/ {formatVolume(opp.futures_volume_24h)}</span>
+                          <span className="text-foreground">{formatVolume(opp.spot_volume_24h)}</span>
+                          <span className="text-muted-foreground">{formatVolume(opp.futures_volume_24h)}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -214,7 +214,7 @@ const OpportunitiesTable = () => {
                             toggleBlacklist(opp.pair_symbol);
                             toast.info(`${opp.pair_symbol} adicionado à blacklist`);
                           }}
-                          className="p-1 h-auto text-destructive hover:text-destructive"
+                          className="p-0 h-auto w-8 text-destructive hover:text-destructive"
                         >
                           <Ban className="w-4 h-4" />
                         </Button>

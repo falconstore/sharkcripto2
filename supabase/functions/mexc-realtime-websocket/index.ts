@@ -66,6 +66,7 @@ serve(async (req) => {
     const opportunities: Opportunity[] = [];
     let processed = 0;
     let withValidPrices = 0;
+    let missingInFutures = 0;
 
     // Processar cada par spot
     for (const [symbol, spot] of spotData.entries()) {
@@ -75,7 +76,11 @@ serve(async (req) => {
       const futuresSymbol = symbol.replace(/USDT$/, '_USDT');
       const futures = futuresData.get(futuresSymbol);
 
-      if (!futures) continue;
+      // CRÍTICO: Só processar se existir em AMBOS os mercados (Spot E Futures)
+      if (!futures) {
+        missingInFutures++;
+        continue;
+      }
 
       const spotBidPrice = parseFloat(spot.price);
       const spotVolume24h = parseFloat(spot.volume);
@@ -131,7 +136,7 @@ serve(async (req) => {
       });
     }
 
-    console.log(`📊 Processados: ${processed} | Válidos: ${withValidPrices} | Oportunidades: ${opportunities.length}`);
+    console.log(`📊 Processados: ${processed} | Válidos: ${withValidPrices} | Sem Futures: ${missingInFutures} | Oportunidades: ${opportunities.length}`);
 
     // Enviar para o cliente
     if (socket.readyState === WebSocket.OPEN) {
