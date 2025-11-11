@@ -16,9 +16,6 @@ const ImprovedArbitrageCalculator = () => {
   
   // Estados básicos
   const [valorInvestido, setValorInvestido] = useState<string>('');
-  const [mode, setMode] = useState<'manual' | 'auto'>('auto');
-  
-  // Estados para modo automático
   const [selectedPair, setSelectedPair] = useState<string>('');
   const [trackingActive, setTrackingActive] = useState(false);
   
@@ -43,17 +40,9 @@ const ImprovedArbitrageCalculator = () => {
     return opportunities.find(o => o.pair_symbol === selectedPair);
   }, [opportunities, selectedPair]);
 
-  // Preencher automaticamente ao selecionar moeda
-  useEffect(() => {
-    if (mode === 'auto' && selectedOpp) {
-      setEntradaSpot(selectedOpp.spot_bid_price.toString());
-      setEntradaFuturo(selectedOpp.futures_ask_price.toString());
-    }
-  }, [selectedOpp, mode]);
-
   // Acompanhamento automático de saída
   useEffect(() => {
-    if (mode === 'auto' && selectedOpp && trackingActive) {
+    if (selectedOpp && trackingActive) {
       const interval = setInterval(() => {
         // Atualizar preços de saída em tempo real
         setFechamentoSpot(selectedOpp.spot_bid_price.toString());
@@ -71,7 +60,7 @@ const ImprovedArbitrageCalculator = () => {
       
       return () => clearInterval(interval);
     }
-  }, [mode, selectedOpp, trackingActive, valorInvestido, entradaSpot, entradaFuturo]);
+  }, [selectedOpp, trackingActive, valorInvestido, entradaSpot, entradaFuturo]);
 
   const calcular = (
     valor?: number,
@@ -162,66 +151,42 @@ const ImprovedArbitrageCalculator = () => {
               
               {/* Coluna 1 e 2: Inputs */}
               <div className="lg:col-span-2 space-y-4">
-                {/* Modo e Valor */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Modo de Operação</Label>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={mode === 'auto' ? 'default' : 'outline'}
-                        onClick={() => setMode('auto')}
-                        className="flex-1"
-                      >
-                        Automático
-                      </Button>
-                      <Button
-                        variant={mode === 'manual' ? 'default' : 'outline'}
-                        onClick={() => setMode('manual')}
-                        className="flex-1"
-                      >
-                        Manual
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="valorInvestido" className="text-sm font-medium">
-                      Valor Investido (USD)
-                    </Label>
-                    <Input
-                      id="valorInvestido"
-                      type="number"
-                      placeholder="0.00"
-                      value={valorInvestido}
-                      onChange={(e) => setValorInvestido(e.target.value)}
-                      className="font-mono"
-                    />
-                  </div>
+                {/* Valor Investido */}
+                <div className="space-y-2">
+                  <Label htmlFor="valorInvestido" className="text-sm font-medium">
+                    Valor Investido (USD)
+                  </Label>
+                  <Input
+                    id="valorInvestido"
+                    type="number"
+                    placeholder="0.00"
+                    value={valorInvestido}
+                    onChange={(e) => setValorInvestido(e.target.value)}
+                    className="font-mono"
+                  />
                 </div>
 
-                {/* Seletor de Moeda (Modo Auto) */}
-                {mode === 'auto' && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Selecionar Moeda</Label>
-                    <Select value={selectedPair} onValueChange={setSelectedPair}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Escolha uma oportunidade..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {opportunities.map((opp) => (
-                          <SelectItem key={opp.pair_symbol} value={opp.pair_symbol}>
-                            <div className="flex items-center justify-between gap-4">
-                              <span className="font-mono">{opp.pair_symbol}</span>
-                              <Badge variant="outline" className={opp.spread_net_percent > 0 ? 'bg-profit/10 text-profit' : 'bg-destructive/10 text-destructive'}>
-                                {opp.spread_net_percent.toFixed(4)}%
-                              </Badge>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                {/* Seletor de Moeda */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Selecionar Moeda (opcional)</Label>
+                  <Select value={selectedPair} onValueChange={setSelectedPair}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Escolha uma oportunidade para ver dados ao vivo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {opportunities.map((opp) => (
+                        <SelectItem key={opp.pair_symbol} value={opp.pair_symbol}>
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="font-mono">{opp.pair_symbol}</span>
+                            <Badge variant="outline" className={opp.spread_net_percent > 0 ? 'bg-profit/10 text-profit' : 'bg-destructive/10 text-destructive'}>
+                              {opp.spread_net_percent.toFixed(4)}%
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <Separator />
 
@@ -240,7 +205,6 @@ const ImprovedArbitrageCalculator = () => {
                         value={entradaSpot}
                         onChange={(e) => setEntradaSpot(e.target.value)}
                         className="font-mono text-sm"
-                        disabled={mode === 'auto' && !!selectedPair}
                       />
                     </div>
 
@@ -255,14 +219,13 @@ const ImprovedArbitrageCalculator = () => {
                         value={entradaFuturo}
                         onChange={(e) => setEntradaFuturo(e.target.value)}
                         className="font-mono text-sm"
-                        disabled={mode === 'auto' && !!selectedPair}
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Toggle de Tracking (Modo Auto) */}
-                {mode === 'auto' && selectedPair && (
+                {/* Toggle de Tracking */}
+                {selectedPair && (
                   <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-accent/20">
                     <div className="flex items-center gap-2">
                       {trackingActive ? <Play className="w-4 h-4 text-profit" /> : <Pause className="w-4 h-4 text-muted-foreground" />}
@@ -342,7 +305,7 @@ const ImprovedArbitrageCalculator = () => {
                     )}
                   </h3>
 
-                  {mode === 'auto' && selectedOpp ? (
+                  {selectedOpp ? (
                     <div className="space-y-3">
                       <Card className="bg-accent/30 border-border">
                         <CardContent className="p-4 space-y-2">
@@ -393,7 +356,7 @@ const ImprovedArbitrageCalculator = () => {
                     </div>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground text-sm">
-                      {mode === 'auto' ? 'Selecione uma moeda para ver dados ao vivo' : 'Dados ao vivo disponíveis apenas no modo automático'}
+                      Selecione uma moeda para ver dados ao vivo
                     </div>
                   )}
                 </div>
