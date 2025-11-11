@@ -1,10 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Ban, TrendingUp, BarChart3, History, ChevronLeft, ChevronRight, Search, ArrowUpDown } from 'lucide-react';
+import { Star, Ban, TrendingUp, BarChart3, History, ChevronLeft, ChevronRight, Search, ArrowUpDown, Filter, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Table,
   TableBody,
@@ -26,8 +30,13 @@ import { useCrossings } from '@/hooks/useCrossings';
 import CrossingsHistoryModal from './CrossingsHistoryModal';
 import { toast } from 'sonner';
 
-type SortField = 'pair_symbol' | 'spread_net_percent' | 'spot_volume_24h' | 'futures_volume_24h';
+type SortField = 'pair_symbol' | 'spread_net_percent_entrada' | 'spread_net_percent_saida' | 'spot_volume_24h' | 'futures_volume_24h';
 type SortOrder = 'asc' | 'desc';
+
+interface SortConfig {
+  field: SortField;
+  order: SortOrder;
+}
 
 const OpportunitiesTable = () => {
   const { opportunities } = useOpportunities();
@@ -35,49 +44,83 @@ const OpportunitiesTable = () => {
   const { crossingsCount } = useCrossings();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const [sortField, setSortField] = useState<SortField>('spread_net_percent');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [sortConfigs, setSortConfigs] = useState<SortConfig[]>([
+    { field: 'spread_net_percent_entrada', order: 'desc' }
+  ]);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedPair, setSelectedPair] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [minSpotVolume, setMinSpotVolume] = useState<number>(0);
+  const [minFuturesVolume, setMinFuturesVolume] = useState<number>(0);
+  const [minSpreadEntrada, setMinSpreadEntrada] = useState<number>(0);
+  const [minSpreadSaida, setMinSpreadSaida] = useState<number>(0);
 
   const filteredAndSorted = useMemo(() => {
-    // Filtrar blacklist
+    // 1. Filtrar blacklist
     let filtered = opportunities.filter(opp => !blacklist.has(opp.pair_symbol));
 
-    // Filtrar por busca
+    // 2. Filtrar por busca
     if (search) {
       filtered = filtered.filter(opp =>
         opp.pair_symbol.toLowerCase().includes(search.toLowerCase())
       );
     }
 
-    // Separar favoritos
+    // 3. Filtrar por volume mínimo (Spot)
+    if (minSpotVolume > 0) {
+      filtered = filtered.filter(opp => opp.spot_volume_24h >= minSpotVolume);
+    }
+
+    // 4. Filtrar por volume mínimo (Futures)
+    if (minFuturesVolume > 0) {
+      filtered = filtered.filter(opp => opp.futures_volume_24h >= minFuturesVolume);
+    }
+
+    // 5. Filtrar por spread mínimo (Entrada)
+    if (minSpreadEntrada > 0) {
+      filtered = filtered.filter(opp => opp.spread_net_percent_entrada >= minSpreadEntrada);
+    }
+
+    // 6. Filtrar por spread mínimo (Saída)
+    if (minSpreadSaida > 0) {
+      filtered = filtered.filter(opp => opp.spread_net_percent_saida >= minSpreadSaida);
+    }
+
+    // 7. Separar favoritos
     const favoritesArray = filtered.filter(opp => favorites.has(opp.pair_symbol));
     const nonFavoritesArray = filtered.filter(opp => !favorites.has(opp.pair_symbol));
 
-    // Ordenar cada grupo
+    // 8. Ordenação por múltiplas colunas
     const sortArray = (arr: typeof filtered) => {
       return arr.sort((a, b) => {
-        const aVal = a[sortField];
-        const bVal = b[sortField];
-        
-        if (typeof aVal === 'string' && typeof bVal === 'string') {
-          return sortOrder === 'asc' 
-            ? aVal.localeCompare(bVal)
-            : bVal.localeCompare(aVal);
+        // Percorrer cada configuração de ordenação
+        for (const config of sortConfigs) {
+          const aVal = a[config.field];
+          const bVal = b[config.field];
+          
+          let comparison = 0;
+          
+          if (typeof aVal === 'string' && typeof bVal === 'string') {
+            comparison = aVal.localeCompare(bVal);
+          } else {
+            comparison = (aVal as number) - (bVal as number);
+          }
+          
+          // Se valores são diferentes, aplicar ordem
+          if (comparison !== 0) {
+            return config.order === 'asc' ? comparison : -comparison;
+          }
+          // Se são iguais, continuar para próxima configuração
         }
-        
-        return sortOrder === 'asc' 
-          ? (aVal as number) - (bVal as number)
-          : (bVal as number) - (aVal as number);
+        return 0;
       });
     };
 
     // Favoritos sempre no topo
     return [...sortArray(favoritesArray), ...sortArray(nonFavoritesArray)];
-  }, [opportunities, search, sortField, sortOrder, favorites, blacklist]);
+  }, [opportunities, search, minSpotVolume, minFuturesVolume, minSpreadEntrada, minSpreadSaida, sortConfigs, favorites, blacklist]);
 
   // Paginação
   const paginatedOpportunities = useMemo(() => {
@@ -92,14 +135,31 @@ const OpportunitiesTable = () => {
   // Resetar para página 1 ao buscar/filtrar
   useMemo(() => {
     setCurrentPage(1);
-  }, [search, sortField, sortOrder]);
+  }, [search, minSpotVolume, minFuturesVolume, minSpreadEntrada, minSpreadSaida, sortConfigs]);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+  const handleSort = (field: SortField, addToStack: boolean = false) => {
+    if (addToStack) {
+      // Adicionar à pilha de ordenação
+      const existingIndex = sortConfigs.findIndex(c => c.field === field);
+      
+      if (existingIndex >= 0) {
+        // Toggle order da configuração existente
+        const newConfigs = [...sortConfigs];
+        newConfigs[existingIndex].order = 
+          newConfigs[existingIndex].order === 'asc' ? 'desc' : 'asc';
+        setSortConfigs(newConfigs);
+      } else {
+        // Adicionar nova configuração
+        setSortConfigs([...sortConfigs, { field, order: 'desc' }]);
+      }
     } else {
-      setSortField(field);
-      setSortOrder('desc');
+      // Substituir toda a pilha (comportamento normal)
+      const existing = sortConfigs.find(c => c.field === field);
+      if (existing) {
+        setSortConfigs([{ field, order: existing.order === 'asc' ? 'desc' : 'asc' }]);
+      } else {
+        setSortConfigs([{ field, order: 'desc' }]);
+      }
     }
   };
 
@@ -133,7 +193,160 @@ const OpportunitiesTable = () => {
     return `$${num.toFixed(0)}`;
   };
 
+  const clearFilters = () => {
+    setMinSpotVolume(0);
+    setMinFuturesVolume(0);
+    setMinSpreadEntrada(0);
+    setMinSpreadSaida(0);
+    toast.success('Filtros limpos');
+  };
+
+  const activeFiltersCount = [minSpotVolume, minFuturesVolume, minSpreadEntrada, minSpreadSaida].filter(v => v > 0).length;
+
+  // Componente de filtros
+  const FilterPanel = () => (
+    <div className="space-y-6 py-4">
+      {/* Filtro de Volume Spot */}
+      <div className="space-y-2">
+        <Label className="text-sm font-semibold">Volume Mínimo Spot</Label>
+        <div className="flex items-center gap-4">
+          <Slider
+            value={[minSpotVolume]}
+            onValueChange={(value) => setMinSpotVolume(value[0])}
+            min={0}
+            max={10000000}
+            step={100000}
+            className="flex-1"
+          />
+          <Input
+            type="number"
+            value={minSpotVolume}
+            onChange={(e) => setMinSpotVolume(Number(e.target.value))}
+            className="w-32"
+            placeholder="0"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {formatVolume(minSpotVolume)}
+        </p>
+      </div>
+
+      {/* Filtro de Volume Futures */}
+      <div className="space-y-2">
+        <Label className="text-sm font-semibold">Volume Mínimo Futures</Label>
+        <div className="flex items-center gap-4">
+          <Slider
+            value={[minFuturesVolume]}
+            onValueChange={(value) => setMinFuturesVolume(value[0])}
+            min={0}
+            max={10000000}
+            step={100000}
+            className="flex-1"
+          />
+          <Input
+            type="number"
+            value={minFuturesVolume}
+            onChange={(e) => setMinFuturesVolume(Number(e.target.value))}
+            className="w-32"
+            placeholder="0"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {formatVolume(minFuturesVolume)}
+        </p>
+      </div>
+
+      {/* Filtro de Spread Entrada */}
+      <div className="space-y-2">
+        <Label className="text-sm font-semibold">Spread Mínimo Entrada (%)</Label>
+        <div className="flex items-center gap-4">
+          <Slider
+            value={[minSpreadEntrada * 100]}
+            onValueChange={(value) => setMinSpreadEntrada(value[0] / 100)}
+            min={0}
+            max={500}
+            step={10}
+            className="flex-1"
+          />
+          <Input
+            type="number"
+            value={minSpreadEntrada}
+            onChange={(e) => setMinSpreadEntrada(Number(e.target.value))}
+            className="w-32"
+            placeholder="0.00"
+            step="0.01"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {minSpreadEntrada.toFixed(2)}%
+        </p>
+      </div>
+
+      {/* Filtro de Spread Saída */}
+      <div className="space-y-2">
+        <Label className="text-sm font-semibold">Spread Mínimo Saída (%)</Label>
+        <div className="flex items-center gap-4">
+          <Slider
+            value={[minSpreadSaida * 100]}
+            onValueChange={(value) => setMinSpreadSaida(value[0] / 100)}
+            min={0}
+            max={500}
+            step={10}
+            className="flex-1"
+          />
+          <Input
+            type="number"
+            value={minSpreadSaida}
+            onChange={(e) => setMinSpreadSaida(Number(e.target.value))}
+            className="w-32"
+            placeholder="0.00"
+            step="0.01"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {minSpreadSaida.toFixed(2)}%
+        </p>
+      </div>
+
+      {/* Botão limpar filtros */}
+      <Button
+        variant="outline"
+        onClick={clearFilters}
+        className="w-full"
+      >
+        <X className="w-4 h-4 mr-2" />
+        Limpar Filtros
+      </Button>
+    </div>
+  );
+
+  // Componente para mostrar a pilha de ordenação
+  const SortStack = () => {
+    if (sortConfigs.length === 0) return null;
+    
+    return (
+      <div className="flex flex-wrap gap-2 mt-3">
+        <span className="text-xs text-muted-foreground">Ordenação:</span>
+        {sortConfigs.map((config, index) => (
+          <Badge key={config.field} variant="outline" className="gap-2">
+            <span className="text-xs">
+              {index + 1}. {config.field.replace(/_/g, ' ')} 
+              {config.order === 'asc' ? ' ↑' : ' ↓'}
+            </span>
+            <X
+              className="w-3 h-3 cursor-pointer hover:text-destructive"
+              onClick={() => {
+                setSortConfigs(sortConfigs.filter((_, i) => i !== index));
+              }}
+            />
+          </Badge>
+        ))}
+      </div>
+    );
+  };
+
   return (
+    <TooltipProvider>
     <Card className="bg-gradient-card hover-lift">
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -151,7 +364,41 @@ const OpportunitiesTable = () => {
                 className="pl-9 w-64"
               />
             </div>
+            
+            {/* Botão de filtros */}
+            <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="relative">
+                  <Filter className="w-4 h-4 mr-2" />
+                  Filtros
+                  {activeFiltersCount > 0 && (
+                    <Badge 
+                      variant="destructive" 
+                      className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs"
+                    >
+                      {activeFiltersCount}
+                    </Badge>
+                  )}
+                </Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader>
+                  <SheetTitle>Filtros Avançados</SheetTitle>
+                </SheetHeader>
+                <FilterPanel />
+              </SheetContent>
+            </Sheet>
           </div>
+        </div>
+        
+        {/* Pilha de ordenação */}
+        <SortStack />
+        
+        {/* Dica de uso */}
+        <div className="flex items-center gap-2 mt-2">
+          <p className="text-xs text-muted-foreground">
+            💡 Dica: CTRL/CMD + Click nas colunas para ordenar por múltiplos campos
+          </p>
         </div>
       </CardHeader>
       <CardContent>
@@ -161,32 +408,118 @@ const OpportunitiesTable = () => {
               <TableRow className="bg-primary/5">
                 <TableHead className="w-[50px]"></TableHead>
                 <TableHead>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSort('pair_symbol')}
-                    className="font-semibold"
-                  >
-                    Par
-                    <ArrowUpDown className="ml-2 w-4 h-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleSort('pair_symbol', e.ctrlKey || e.metaKey)}
+                        className="font-semibold"
+                      >
+                        Par
+                        {sortConfigs.find(c => c.field === 'pair_symbol') && (
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            {sortConfigs.findIndex(c => c.field === 'pair_symbol') + 1}
+                            {sortConfigs.find(c => c.field === 'pair_symbol')?.order === 'asc' ? '↑' : '↓'}
+                          </Badge>
+                        )}
+                        <ArrowUpDown className="ml-2 w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>CTRL/CMD + Click para adicionar à ordenação</TooltipContent>
+                  </Tooltip>
                 </TableHead>
                 <TableHead>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSort('spread_net_percent')}
-                    className="font-semibold"
-                  >
-                    Entrada %
-                    <ArrowUpDown className="ml-2 w-4 h-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleSort('spread_net_percent_entrada', e.ctrlKey || e.metaKey)}
+                        className="font-semibold"
+                      >
+                        Entrada %
+                        {sortConfigs.find(c => c.field === 'spread_net_percent_entrada') && (
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            {sortConfigs.findIndex(c => c.field === 'spread_net_percent_entrada') + 1}
+                            {sortConfigs.find(c => c.field === 'spread_net_percent_entrada')?.order === 'asc' ? '↑' : '↓'}
+                          </Badge>
+                        )}
+                        <ArrowUpDown className="ml-2 w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>CTRL/CMD + Click para adicionar à ordenação</TooltipContent>
+                  </Tooltip>
                 </TableHead>
-                <TableHead>Saída %</TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleSort('spread_net_percent_saida', e.ctrlKey || e.metaKey)}
+                        className="font-semibold"
+                      >
+                        Saída %
+                        {sortConfigs.find(c => c.field === 'spread_net_percent_saida') && (
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            {sortConfigs.findIndex(c => c.field === 'spread_net_percent_saida') + 1}
+                            {sortConfigs.find(c => c.field === 'spread_net_percent_saida')?.order === 'asc' ? '↑' : '↓'}
+                          </Badge>
+                        )}
+                        <ArrowUpDown className="ml-2 w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>CTRL/CMD + Click para adicionar à ordenação</TooltipContent>
+                  </Tooltip>
+                </TableHead>
                 <TableHead>Cruzamentos (1h)</TableHead>
                 <TableHead>Preço Spot (Compra)</TableHead>
                 <TableHead>Preço Futuros (Venda)</TableHead>
-                <TableHead>Volume 24h (Spot / Futuro)</TableHead>
+                <TableHead>
+                  <div className="flex flex-col gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleSort('spot_volume_24h', e.ctrlKey || e.metaKey)}
+                          className="font-semibold h-auto py-1"
+                        >
+                          Volume Spot
+                          {sortConfigs.find(c => c.field === 'spot_volume_24h') && (
+                            <Badge variant="secondary" className="ml-2 text-xs">
+                              {sortConfigs.findIndex(c => c.field === 'spot_volume_24h') + 1}
+                              {sortConfigs.find(c => c.field === 'spot_volume_24h')?.order === 'asc' ? '↑' : '↓'}
+                            </Badge>
+                          )}
+                          <ArrowUpDown className="ml-2 w-3 h-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>CTRL/CMD + Click para adicionar à ordenação</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleSort('futures_volume_24h', e.ctrlKey || e.metaKey)}
+                          className="font-semibold h-auto py-1"
+                        >
+                          Volume Futures
+                          {sortConfigs.find(c => c.field === 'futures_volume_24h') && (
+                            <Badge variant="secondary" className="ml-2 text-xs">
+                              {sortConfigs.findIndex(c => c.field === 'futures_volume_24h') + 1}
+                              {sortConfigs.find(c => c.field === 'futures_volume_24h')?.order === 'asc' ? '↑' : '↓'}
+                            </Badge>
+                          )}
+                          <ArrowUpDown className="ml-2 w-3 h-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>CTRL/CMD + Click para adicionar à ordenação</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TableHead>
                 <TableHead className="w-[150px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -401,6 +734,7 @@ const OpportunitiesTable = () => {
         pairSymbol={selectedPair}
       />
     </Card>
+    </TooltipProvider>
   );
 };
 
