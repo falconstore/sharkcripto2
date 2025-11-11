@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import DashboardHeader from '@/components/DashboardHeader';
+import DashboardStats from '@/components/DashboardStats';
+import MonitoringStatus from '@/components/MonitoringStatus';
 import OpportunitiesTable from '@/components/OpportunitiesTable';
 import ArbitrageHeatmap from '@/components/ArbitrageHeatmap';
 
@@ -35,21 +37,11 @@ const Dashboard = () => {
       <DashboardHeader />
       
       <main className="container mx-auto px-4 py-8 space-y-8 animate-slide-up">
+        {/* Status do Monitoramento */}
+        <MonitoringStatus />
+
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift">
-            <div className="text-sm text-muted-foreground mb-1">Oportunidades Ativas</div>
-            <div className="text-3xl font-bold text-gold">--</div>
-          </div>
-          <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift">
-            <div className="text-sm text-muted-foreground mb-1">Melhor Spread</div>
-            <div className="text-3xl font-bold text-profit">--%</div>
-          </div>
-          <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift">
-            <div className="text-sm text-muted-foreground mb-1">Volume Total 24h</div>
-            <div className="text-3xl font-bold">$--</div>
-          </div>
-        </div>
+        <DashboardStats />
 
         {/* Heatmap */}
         <ArbitrageHeatmap />

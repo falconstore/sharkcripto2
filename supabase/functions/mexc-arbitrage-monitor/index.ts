@@ -47,6 +47,29 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Buscar todos os pares USDT disponíveis
+    const fetchUSDTPairs = async (): Promise<string[]> => {
+      try {
+        // API Spot MEXC para obter todos os símbolos
+        const spotResponse = await fetch('https://api.mexc.com/api/v3/exchangeInfo');
+        const spotData = await spotResponse.json();
+        
+        const usdtPairs = spotData.symbols
+          .filter((s: any) => s.symbol.endsWith('USDT') && s.status === 'ENABLED')
+          .map((s: any) => s.symbol)
+          .slice(0, 100); // Limitar a 100 pares para evitar sobrecarga
+        
+        console.log(`Found ${usdtPairs.length} USDT pairs on MEXC`);
+        return usdtPairs;
+      } catch (error) {
+        console.error('Error fetching USDT pairs:', error);
+        return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT']; // Fallback
+      }
+    };
+
+    const usdtPairs = await fetchUSDTPairs();
+    console.log('Monitoring pairs:', usdtPairs.join(', '));
+
     // Armazenar dados por par
     const pairDataMap = new Map<string, PairData>();
 
@@ -109,10 +132,8 @@ Deno.serve(async (req) => {
       spotWs.onopen = () => {
         console.log('Spot WebSocket connected');
         
-        // Subscrever aos tickers principais
-        const pairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT'];
-        
-        pairs.forEach(pair => {
+        // Subscrever a todos os pares USDT
+        usdtPairs.forEach(pair => {
           // BookTicker para preços
           spotWs.send(JSON.stringify({
             method: 'SUBSCRIPTION',
@@ -125,6 +146,8 @@ Deno.serve(async (req) => {
             params: [`spot@public.ticker.v3.api@${pair}`]
           }));
         });
+        
+        console.log(`Subscribed to ${usdtPairs.length} spot pairs`);
       };
 
       spotWs.onmessage = (event) => {
@@ -190,9 +213,14 @@ Deno.serve(async (req) => {
       futuresWs.onopen = () => {
         console.log('Futures WebSocket connected');
         
-        const pairs = ['BTC_USDT', 'ETH_USDT', 'BNB_USDT', 'SOL_USDT', 'ADA_USDT'];
+        // Converter BTCUSDT -> BTC_USDT para futuros
+        const futuresPairs = usdtPairs.map(pair => {
+          // Remove USDT e adiciona _USDT
+          const base = pair.replace('USDT', '');
+          return `${base}_USDT`;
+        });
         
-        pairs.forEach(pair => {
+        futuresPairs.forEach(pair => {
           futuresWs.send(JSON.stringify({
             method: 'sub.ticker',
             param: {
@@ -200,6 +228,8 @@ Deno.serve(async (req) => {
             }
           }));
         });
+        
+        console.log(`Subscribed to ${futuresPairs.length} futures pairs`);
       };
 
       futuresWs.onmessage = (event) => {
