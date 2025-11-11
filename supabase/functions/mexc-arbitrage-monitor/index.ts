@@ -141,10 +141,10 @@ Deno.serve(async (req) => {
 
         const spotBidPrice = parseFloat(spotTicker.bidPrice);
         const spotAskPrice = parseFloat(spotTicker.askPrice);
-        const spotVolume = parseFloat(spotTicker.quoteVolume);
+        const spotVolume = parseFloat(spotTicker.quoteVolume) || 0;
         const futuresBidPrice = parseFloat(futuresTicker.bid1);
         const futuresAskPrice = parseFloat(futuresTicker.ask1);
-        const futuresVolume = parseFloat(futuresTicker.volume24);
+        const futuresVolume = parseFloat(futuresTicker.volume24) || 0;
 
         // Validar dados
         if (!spotBidPrice || !spotAskPrice || !futuresBidPrice || !futuresAskPrice ||
