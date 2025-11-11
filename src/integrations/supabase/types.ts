@@ -193,6 +193,63 @@ export type Database = {
         }
         Relationships: []
       }
+      mexc_operations: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          futures_order_id: string | null
+          futures_price: number
+          id: string
+          operation_type: string
+          pair_symbol: string
+          quantity: number
+          simulation: boolean
+          spot_order_id: string | null
+          spot_price: number
+          spread_percent: number
+          status: string
+          total_value: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          futures_order_id?: string | null
+          futures_price: number
+          id?: string
+          operation_type: string
+          pair_symbol: string
+          quantity: number
+          simulation?: boolean
+          spot_order_id?: string | null
+          spot_price: number
+          spread_percent: number
+          status?: string
+          total_value: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          futures_order_id?: string | null
+          futures_price?: number
+          id?: string
+          operation_type?: string
+          pair_symbol?: string
+          quantity?: number
+          simulation?: boolean
+          spot_order_id?: string | null
+          spot_price?: number
+          spread_percent?: number
+          status?: string
+          total_value?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pair_crossings: {
         Row: {
           created_at: string | null
