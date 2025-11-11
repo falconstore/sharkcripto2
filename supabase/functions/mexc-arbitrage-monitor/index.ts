@@ -56,6 +56,7 @@ Deno.serve(async (req) => {
         const data: SpotTicker[] = await response.json();
         const usdtPairs = new Map<string, SpotTicker>();
         const targetPairs = ['RAIL', 'BAGWORK', 'ORE', 'BOBBSC'];
+        const foundTargets: string[] = [];
         
         data.forEach(ticker => {
           if (ticker.symbol.endsWith('USDT')) {
@@ -64,7 +65,20 @@ Deno.serve(async (req) => {
             
             // Log moedas específicas encontradas no SPOT
             if (targetPairs.includes(baseSymbol)) {
-              console.log(`✅ SPOT encontrado: ${baseSymbol} (${ticker.symbol})`);
+              foundTargets.push(baseSymbol);
+              console.log(`✅ SPOT encontrado: ${baseSymbol} (${ticker.symbol}) vol=${ticker.quoteVolume}`);
+            }
+          }
+        });
+        
+        // Verificar quais das moedas alvo NÃO foram encontradas
+        targetPairs.forEach(symbol => {
+          if (!foundTargets.includes(symbol)) {
+            console.log(`❌ ${symbol} NÃO ENCONTRADO no SPOT`);
+            // Buscar símbolos similares
+            const similar = data.filter(t => t.symbol.includes(symbol)).slice(0, 3);
+            if (similar.length > 0) {
+              console.log(`   Símbolos similares: ${similar.map(t => t.symbol).join(', ')}`);
             }
           }
         });
