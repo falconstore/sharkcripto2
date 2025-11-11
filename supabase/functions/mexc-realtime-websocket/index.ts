@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import protobuf from "https://esm.sh/protobufjs@7.2.5";
 
 const SPOT_WS_URL = "wss://wbs-api.mexc.com/ws";
 const FUTURES_WS_URL = "wss://contract.mexc.com/edge";
@@ -6,6 +7,32 @@ const FUTURES_WS_URL = "wss://contract.mexc.com/edge";
 // Taxas da MEXC
 const SPOT_TAKER_FEE = 0.001; // 0.1%
 const FUTURES_TAKER_FEE = 0.0002; // 0.02%
+
+// Definir schema Protobuf para MEXC Spot miniTickers
+const miniTickersProto = `
+syntax = "proto3";
+
+message MiniTicker {
+  string symbol = 1;
+  string price = 2;
+  string volume = 3;
+  string high = 4;
+  string low = 5;
+  int64 time = 6;
+}
+
+message MiniTickers {
+  repeated MiniTicker items = 1;
+}
+
+message Response {
+  MiniTickers publicMiniTickers = 1;
+}
+`;
+
+// Criar root do protobuf
+const root = protobuf.parse(miniTickersProto).root;
+const ResponseMessage = root.lookupType("Response");
 
 interface SpotTicker {
   symbol: string;
@@ -170,32 +197,49 @@ serve(async (req) => {
       }, 20000); // Ping a cada 20 segundos
     };
 
-    spotWs.onmessage = (event) => {
+    spotWs.onmessage = async (event) => {
       try {
-        const data = JSON.parse(event.data);
-        
-        // Ignorar mensagens de confirmação
-        if (data.code !== undefined || data.msg === "PONG") {
+        // Verificar se é uma mensagem texto (JSON) ou binária (Protobuf)
+        if (typeof event.data === 'string') {
+          const data = JSON.parse(event.data);
+          // Ignorar mensagens de confirmação e PONG
+          if (data.code !== undefined || data.msg === "PONG") {
+            return;
+          }
           return;
         }
 
-        // Processar miniTickers
-        if (data.publicMiniTickers?.items) {
-          const items = data.publicMiniTickers.items;
-          items.forEach((ticker: any) => {
-            if (ticker.symbol.endsWith('USDT')) {
-              spotData.set(ticker.symbol, {
-                symbol: ticker.symbol,
-                price: ticker.price,
-                volume: ticker.volume,
-                high: ticker.high,
-                low: ticker.low,
-              });
-            }
-          });
+        // Processar dados binários (Protobuf)
+        if (event.data instanceof Blob) {
+          const arrayBuffer = await event.data.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
           
-          console.log(`📈 Spot atualizado: ${spotData.size} pares`);
-          processAndSendOpportunities();
+          // Decodificar Protobuf
+          const message = ResponseMessage.decode(uint8Array);
+          const data = ResponseMessage.toObject(message, {
+            longs: String,
+            enums: String,
+            bytes: String,
+          });
+
+          // Processar miniTickers
+          if (data.publicMiniTickers?.items) {
+            const items = data.publicMiniTickers.items;
+            items.forEach((ticker: any) => {
+              if (ticker.symbol.endsWith('USDT')) {
+                spotData.set(ticker.symbol, {
+                  symbol: ticker.symbol,
+                  price: ticker.price,
+                  volume: ticker.volume,
+                  high: ticker.high,
+                  low: ticker.low,
+                });
+              }
+            });
+            
+            console.log(`📈 Spot atualizado: ${spotData.size} pares`);
+            processAndSendOpportunities();
+          }
         }
       } catch (error) {
         console.error("❌ Erro ao processar mensagem Spot:", error);
