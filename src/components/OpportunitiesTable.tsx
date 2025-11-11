@@ -14,9 +14,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, ArrowUpDown, TrendingUp, Star, Ban, History } from 'lucide-react';
+import { Search, ArrowUpDown, TrendingUp, Star, Ban, History, BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 type SortField = 'pair_symbol' | 'spread_net_percent' | 'spot_volume_24h' | 'futures_volume_24h';
 type SortOrder = 'asc' | 'desc';
@@ -25,6 +26,7 @@ const OpportunitiesTable = () => {
   const { opportunities } = useOpportunities();
   const { favorites, blacklist, toggleFavorite, toggleBlacklist } = usePreferences();
   const { crossingsCount } = useCrossings();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('spread_net_percent');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -266,6 +268,17 @@ const OpportunitiesTable = () => {
               )}
             </TableBody>
           </Table>
+        </div>
+
+        <div className="mt-4 flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => navigate('/statistics')}
+            className="gap-2"
+          >
+            <BarChart3 className="w-4 h-4" />
+            Ver estatísticas completas
+          </Button>
         </div>
       </CardContent>
 

@@ -1,12 +1,17 @@
+import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { Button } from '@/components/ui/button';
-import { Moon, Sun, LogOut, TrendingUp } from 'lucide-react';
+import { Moon, Sun, LogOut, TrendingUp, BarChart3, Bell } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useNavigate } from 'react-router-dom';
+import NotificationSettings from './NotificationSettings';
 
 const DashboardHeader = () => {
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
 
   const getInitials = (email: string) => {
     return email.substring(0, 2).toUpperCase();
@@ -27,6 +32,25 @@ const DashboardHeader = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/statistics')}
+              className="hidden sm:flex"
+            >
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Estatísticas
+            </Button>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setNotificationSettingsOpen(true)}
+              title="Configurações de notificação"
+            >
+              <Bell className="w-5 h-5" />
+            </Button>
+
             <Button
               variant="outline"
               size="icon"
@@ -67,6 +91,11 @@ const DashboardHeader = () => {
           </div>
         </div>
       </div>
+
+      <NotificationSettings
+        open={notificationSettingsOpen}
+        onOpenChange={setNotificationSettingsOpen}
+      />
     </header>
   );
 };

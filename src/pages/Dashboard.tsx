@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useCrossingNotifications } from '@/hooks/useCrossingNotifications';
 import DashboardHeader from '@/components/DashboardHeader';
 import DashboardStats from '@/components/DashboardStats';
 import MonitoringStatus from '@/components/MonitoringStatus';
@@ -11,6 +12,9 @@ import ArbitrageCalculator from '@/components/ArbitrageCalculator';
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  
+  // Ativar notificações em tempo real
+  useCrossingNotifications();
 
   useEffect(() => {
     if (!loading && !user) {
