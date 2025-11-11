@@ -2,3 +2,6 @@ project_id = "jschuymzkukzthesevoy"
 
 [functions.cleanup-opportunities]
 verify_jwt = false
+
+[functions.mexc-realtime-websocket]
+verify_jwt = false

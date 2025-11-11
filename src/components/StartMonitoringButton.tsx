@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Play, Square, Loader2, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { usePreferences } from '@/hooks/usePreferences';
 import {
@@ -16,86 +15,128 @@ import {
 const StartMonitoringButton = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
-  const [intervalId, setIntervalId] = useState<number | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const isRunningRef = useRef(false);
   const { setOpportunities } = useOpportunities();
   const { updateInterval, setUpdateInterval } = usePreferences();
 
-  const callMonitor = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('mexc-arbitrage-monitor', {
-        method: 'POST'
-      });
-
-      if (error) {
-        console.error('Error calling monitor:', error);
-        return;
-      }
-
-      if (data?.opportunities) {
-        setOpportunities(data.opportunities);
-      }
-    } catch (error) {
-      console.error('Error calling monitor:', error);
+  const connectWebSocket = () => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket já conectado');
+      return;
     }
-  };
 
-  const startMonitoring = async () => {
     setIsStarting(true);
-    
-    try {
-      // Primeira chamada imediata
-      await callMonitor();
+    console.log('🔌 Conectando ao WebSocket...');
 
-      // Configurar chamadas com intervalo selecionado
-      const id = window.setInterval(callMonitor, updateInterval * 1000);
-      setIntervalId(id);
+    // URL completa da edge function WebSocket
+    const wsUrl = 'wss://jschuymzkukzthesevoy.supabase.co/functions/v1/mexc-realtime-websocket';
+    
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log('✅ WebSocket conectado!');
+      setIsConnected(true);
       setIsRunning(true);
+      isRunningRef.current = true;
+      setIsStarting(false);
       
       toast.success('Monitor de arbitragem iniciado!', {
-        description: `Atualizando a cada ${updateInterval} segundo${updateInterval > 1 ? 's' : ''}`
+        description: 'Recebendo atualizações em tempo real'
       });
-    } catch (error) {
-      console.error('Error starting monitor:', error);
-      toast.error('Erro ao iniciar monitor', {
-        description: 'Tente novamente em alguns segundos'
-      });
-    } finally {
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        
+        if (message.type === 'opportunities' && message.data) {
+          console.log(`📊 Recebidas ${message.data.length} oportunidades`);
+          setOpportunities(message.data);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao processar mensagem:', error);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('❌ Erro no WebSocket:', error);
+      setIsConnected(false);
       setIsStarting(false);
-    }
+      
+      toast.error('Erro na conexão', {
+        description: 'Tentando reconectar...'
+      });
+    };
+
+    ws.onclose = () => {
+      console.log('🔌 WebSocket desconectado');
+      setIsConnected(false);
+      wsRef.current = null;
+
+      // Reconectar automaticamente se ainda estiver "running"
+      if (isRunningRef.current) {
+        console.log('♻️ Reconectando em 5 segundos...');
+        reconnectTimeoutRef.current = window.setTimeout(() => {
+          connectWebSocket();
+        }, 5000);
+      }
+    };
   };
 
   const stopMonitoring = () => {
-    if (intervalId) {
-      window.clearInterval(intervalId);
-      setIntervalId(null);
+    console.log('🛑 Parando monitoramento...');
+    
+    isRunningRef.current = false;
+    
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
+
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
     setIsRunning(false);
+    setIsConnected(false);
     setOpportunities([]);
+    
     toast.info('Monitor parado', {
       description: 'O monitoramento foi interrompido'
     });
   };
 
+  const startMonitoring = () => {
+    connectWebSocket();
+  };
+
+  // Cleanup ao desmontar
+  useEffect(() => {
+    return () => {
+      isRunningRef.current = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, []);
+
   return (
     <div className="flex items-center gap-3">
       <div className="flex items-center gap-2">
-        <Clock className="w-4 h-4 text-muted-foreground" />
-        <Select
-          value={updateInterval.toString()}
-          onValueChange={(value) => setUpdateInterval(Number(value))}
-          disabled={isRunning}
-        >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1">1 segundo</SelectItem>
-            <SelectItem value="2">2 segundos</SelectItem>
-            <SelectItem value="3">3 segundos</SelectItem>
-            <SelectItem value="4">4 segundos</SelectItem>
-            <SelectItem value="5">5 segundos</SelectItem>
-          </SelectContent>
-        </Select>
+        {isConnected && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-md">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span className="text-xs font-medium text-green-500">Tempo Real</span>
+          </div>
+        )}
       </div>
       
       {!isRunning ? (
