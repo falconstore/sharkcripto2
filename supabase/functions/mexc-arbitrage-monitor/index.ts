@@ -5,35 +5,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface SpotBookTicker {
+interface SpotTicker {
   symbol: string;
   bidPrice: string;
   bidQty: string;
   askPrice: string;
   askQty: string;
-}
-
-interface SpotTicker {
-  symbol: string;
+  volume: string;
   quoteVolume: string;
 }
 
 interface FuturesTicker {
   symbol: string;
-  ask1: number;
-  amount24: number;
-}
-
-interface PairData {
-  spotBidPrice: number | null;
-  spotVolume24h: number | null;
-  futuresAskPrice: number | null;
-  futuresVolume24h: number | null;
+  lastPrice: string;
+  bidPrice: string;
+  askPrice: string;
+  volume24: string;
 }
 
 // Taxas da MEXC (em %)
 const SPOT_TAKER_FEE = 0.10;
 const FUTURES_TAKER_FEE = 0.02;
+const MIN_VOLUME_USDT = 100000;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -41,241 +34,167 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('Starting MEXC Arbitrage Monitor...');
+    console.log('=== MEXC Arbitrage Monitor Starting ===');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Buscar todos os pares USDT disponíveis
-    const fetchUSDTPairs = async (): Promise<string[]> => {
+    // Função para buscar tickers Spot
+    const fetchSpotTickers = async (): Promise<Map<string, SpotTicker>> => {
       try {
-        // API Spot MEXC para obter todos os símbolos
-        const spotResponse = await fetch('https://api.mexc.com/api/v3/exchangeInfo');
-        const spotData = await spotResponse.json();
+        const response = await fetch('https://api.mexc.com/api/v3/ticker/24hr');
+        if (!response.ok) {
+          console.error('Spot API error:', response.status, response.statusText);
+          return new Map();
+        }
         
-        const usdtPairs = spotData.symbols
-          .filter((s: any) => s.symbol.endsWith('USDT') && s.status === 'ENABLED')
-          .map((s: any) => s.symbol)
-          .slice(0, 100); // Limitar a 100 pares para evitar sobrecarga
+        const data: SpotTicker[] = await response.json();
+        const usdtPairs = new Map<string, SpotTicker>();
         
-        console.log(`Found ${usdtPairs.length} USDT pairs on MEXC`);
+        data.forEach(ticker => {
+          if (ticker.symbol.endsWith('USDT')) {
+            usdtPairs.set(ticker.symbol, ticker);
+          }
+        });
+        
+        console.log(`✅ Fetched ${usdtPairs.size} USDT spot pairs`);
         return usdtPairs;
       } catch (error) {
-        console.error('Error fetching USDT pairs:', error);
-        return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT']; // Fallback
+        console.error('Error fetching spot tickers:', error);
+        return new Map();
       }
     };
 
-    const usdtPairs = await fetchUSDTPairs();
-    console.log('Monitoring pairs:', usdtPairs.join(', '));
-
-    // Armazenar dados por par
-    const pairDataMap = new Map<string, PairData>();
+    // Função para buscar tickers de Futuros
+    const fetchFuturesTickers = async (): Promise<Map<string, FuturesTicker>> => {
+      try {
+        const response = await fetch('https://contract.mexc.com/api/v1/contract/ticker');
+        if (!response.ok) {
+          console.error('Futures API error:', response.status, response.statusText);
+          return new Map();
+        }
+        
+        const data: { data: FuturesTicker[] } = await response.json();
+        const usdtPairs = new Map<string, FuturesTicker>();
+        
+        if (data.data && Array.isArray(data.data)) {
+          data.data.forEach(ticker => {
+            if (ticker.symbol.endsWith('_USDT')) {
+              // Converter BTC_USDT -> BTCUSDT para match com spot
+              const spotSymbol = ticker.symbol.replace('_', '');
+              usdtPairs.set(spotSymbol, ticker);
+            }
+          });
+        }
+        
+        console.log(`✅ Fetched ${usdtPairs.size} USDT futures pairs`);
+        return usdtPairs;
+      } catch (error) {
+        console.error('Error fetching futures tickers:', error);
+        return new Map();
+      }
+    };
 
     // Função para processar oportunidades
-    const processOpportunity = async (pairSymbol: string) => {
-      const data = pairDataMap.get(pairSymbol);
+    const processOpportunities = async () => {
+      console.log('\n🔄 Fetching market data...');
       
-      if (!data || 
-          data.spotBidPrice === null || 
-          data.spotVolume24h === null ||
-          data.futuresAskPrice === null ||
-          data.futuresVolume24h === null) {
-        return; // Dados incompletos
-      }
+      const [spotTickers, futuresTickers] = await Promise.all([
+        fetchSpotTickers(),
+        fetchFuturesTickers()
+      ]);
 
-      // Filtro de liquidez mínima
-      if (data.spotVolume24h < 100000 || data.futuresVolume24h < 100000) {
-        return; // Volume muito baixo
-      }
-
-      // Calcular spread
-      const spotPrice = data.spotBidPrice;
-      const futuresPrice = data.futuresAskPrice;
-      
-      const spreadGross = ((futuresPrice - spotPrice) / spotPrice) * 100;
-      const spreadNet = spreadGross - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
-
-      // Apenas oportunidades com spread líquido positivo
-      if (spreadNet <= 0) {
+      if (spotTickers.size === 0 || futuresTickers.size === 0) {
+        console.log('⚠️ No data fetched, skipping this cycle');
         return;
       }
 
-      console.log(`Opportunity found: ${pairSymbol} - ${spreadNet.toFixed(4)}%`);
+      let opportunitiesFound = 0;
+      const opportunities: any[] = [];
 
-      // Inserir no banco
-      const { error } = await supabase
-        .from('arbitrage_opportunities')
-        .insert({
-          pair_symbol: pairSymbol,
-          spot_bid_price: spotPrice,
-          spot_volume_24h: data.spotVolume24h,
-          futures_ask_price: futuresPrice,
-          futures_volume_24h: data.futuresVolume24h,
-          spread_gross_percent: spreadGross,
-          spread_net_percent: spreadNet,
-          spot_taker_fee: SPOT_TAKER_FEE,
-          futures_taker_fee: FUTURES_TAKER_FEE,
-          is_active: true
-        });
+      // Processar cada par que existe em ambos os mercados
+      spotTickers.forEach((spotTicker, symbol) => {
+        const futuresTicker = futuresTickers.get(symbol);
+        
+        if (!futuresTicker) return;
 
-      if (error) {
-        console.error(`Error inserting opportunity for ${pairSymbol}:`, error);
+        const spotBidPrice = parseFloat(spotTicker.bidPrice);
+        const spotVolume = parseFloat(spotTicker.quoteVolume);
+        const futuresAskPrice = parseFloat(futuresTicker.askPrice);
+        const futuresVolume = parseFloat(futuresTicker.volume24);
+
+        // Validar dados
+        if (!spotBidPrice || !futuresAskPrice || spotBidPrice <= 0 || futuresAskPrice <= 0) {
+          return;
+        }
+
+        // Filtro de liquidez
+        if (spotVolume < MIN_VOLUME_USDT || futuresVolume < MIN_VOLUME_USDT) {
+          return;
+        }
+
+        // Calcular spread
+        const spreadGross = ((futuresAskPrice - spotBidPrice) / spotBidPrice) * 100;
+        const spreadNet = spreadGross - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
+
+        // Apenas spreads positivos
+        if (spreadNet > 0) {
+          opportunitiesFound++;
+          
+          opportunities.push({
+            pair_symbol: symbol,
+            spot_bid_price: spotBidPrice,
+            spot_volume_24h: spotVolume,
+            futures_ask_price: futuresAskPrice,
+            futures_volume_24h: futuresVolume,
+            spread_gross_percent: spreadGross,
+            spread_net_percent: spreadNet,
+            spot_taker_fee: SPOT_TAKER_FEE,
+            futures_taker_fee: FUTURES_TAKER_FEE,
+            is_active: true,
+            timestamp: new Date().toISOString()
+          });
+
+          if (opportunitiesFound <= 5) {
+            console.log(`💰 ${symbol}: ${spreadNet.toFixed(4)}% | Spot: $${spotBidPrice} | Futures: $${futuresAskPrice}`);
+          }
+        }
+      });
+
+      // Inserir todas as oportunidades no banco
+      if (opportunities.length > 0) {
+        const { error } = await supabase
+          .from('arbitrage_opportunities')
+          .insert(opportunities);
+
+        if (error) {
+          console.error('❌ Error inserting opportunities:', error);
+        } else {
+          console.log(`✅ Inserted ${opportunities.length} opportunities into database`);
+        }
+      } else {
+        console.log('⚠️ No profitable opportunities found in this cycle');
       }
+
+      console.log(`📊 Total opportunities: ${opportunitiesFound}/${spotTickers.size} pairs`);
     };
 
-    // Conectar ao WebSocket do Spot (MEXC)
-    const connectSpot = async () => {
-      const spotWs = new WebSocket('wss://wbs.mexc.com/ws');
+    // Executar primeira vez imediatamente
+    await processOpportunities();
 
-      spotWs.onopen = () => {
-        console.log('Spot WebSocket connected');
-        
-        // Subscrever a todos os pares USDT
-        usdtPairs.forEach(pair => {
-          // BookTicker para preços
-          spotWs.send(JSON.stringify({
-            method: 'SUBSCRIPTION',
-            params: [`spot@public.bookTicker.v3.api@${pair}`]
-          }));
-          
-          // Ticker para volume
-          spotWs.send(JSON.stringify({
-            method: 'SUBSCRIPTION',
-            params: [`spot@public.ticker.v3.api@${pair}`]
-          }));
-        });
-        
-        console.log(`Subscribed to ${usdtPairs.length} spot pairs`);
-      };
+    // Loop contínuo a cada 2 segundos
+    const intervalId = setInterval(async () => {
+      try {
+        await processOpportunities();
+      } catch (error) {
+        console.error('Error in processing cycle:', error);
+      }
+    }, 2000);
 
-      spotWs.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          
-          if (msg.c === 'spot@public.bookTicker.v3.api') {
-            const data: SpotBookTicker = msg.d;
-            const symbol = data.symbol;
-            
-            if (!pairDataMap.has(symbol)) {
-              pairDataMap.set(symbol, {
-                spotBidPrice: null,
-                spotVolume24h: null,
-                futuresAskPrice: null,
-                futuresVolume24h: null
-              });
-            }
-            
-            const pairData = pairDataMap.get(symbol)!;
-            pairData.spotBidPrice = parseFloat(data.bidPrice);
-            
-            processOpportunity(symbol);
-          }
-          
-          if (msg.c === 'spot@public.ticker.v3.api') {
-            const data: SpotTicker = msg.d;
-            const symbol = data.symbol;
-            
-            if (!pairDataMap.has(symbol)) {
-              pairDataMap.set(symbol, {
-                spotBidPrice: null,
-                spotVolume24h: null,
-                futuresAskPrice: null,
-                futuresVolume24h: null
-              });
-            }
-            
-            const pairData = pairDataMap.get(symbol)!;
-            pairData.spotVolume24h = parseFloat(data.quoteVolume);
-            
-            processOpportunity(symbol);
-          }
-        } catch (error) {
-          console.error('Error processing spot message:', error);
-        }
-      };
+    // Manter a função rodando
+    await new Promise(() => {}); // Loop infinito
 
-      spotWs.onerror = (error) => {
-        console.error('Spot WebSocket error:', error);
-      };
-
-      spotWs.onclose = () => {
-        console.log('Spot WebSocket closed, reconnecting in 5s...');
-        setTimeout(connectSpot, 5000);
-      };
-    };
-
-    // Conectar ao WebSocket dos Futuros (MEXC)
-    const connectFutures = async () => {
-      const futuresWs = new WebSocket('wss://contract.mexc.com/edge');
-
-      futuresWs.onopen = () => {
-        console.log('Futures WebSocket connected');
-        
-        // Converter BTCUSDT -> BTC_USDT para futuros
-        const futuresPairs = usdtPairs.map(pair => {
-          // Remove USDT e adiciona _USDT
-          const base = pair.replace('USDT', '');
-          return `${base}_USDT`;
-        });
-        
-        futuresPairs.forEach(pair => {
-          futuresWs.send(JSON.stringify({
-            method: 'sub.ticker',
-            param: {
-              symbol: pair
-            }
-          }));
-        });
-        
-        console.log(`Subscribed to ${futuresPairs.length} futures pairs`);
-      };
-
-      futuresWs.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          
-          if (msg.channel === 'push.ticker' && msg.data) {
-            const data: FuturesTicker = msg.data;
-            // Converter BTC_USDT para BTCUSDT
-            const symbol = data.symbol.replace('_', '');
-            
-            if (!pairDataMap.has(symbol)) {
-              pairDataMap.set(symbol, {
-                spotBidPrice: null,
-                spotVolume24h: null,
-                futuresAskPrice: null,
-                futuresVolume24h: null
-              });
-            }
-            
-            const pairData = pairDataMap.get(symbol)!;
-            pairData.futuresAskPrice = data.ask1;
-            pairData.futuresVolume24h = data.amount24;
-            
-            processOpportunity(symbol);
-          }
-        } catch (error) {
-          console.error('Error processing futures message:', error);
-        }
-      };
-
-      futuresWs.onerror = (error) => {
-        console.error('Futures WebSocket error:', error);
-      };
-
-      futuresWs.onclose = () => {
-        console.log('Futures WebSocket closed, reconnecting in 5s...');
-        setTimeout(connectFutures, 5000);
-      };
-    };
-
-    // Iniciar conexões
-    connectSpot();
-    connectFutures();
-
-    // Esta função roda continuamente
     return new Response(
       JSON.stringify({ 
         message: 'MEXC Arbitrage Monitor started successfully',
@@ -287,7 +206,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in MEXC monitor:', error);
+    console.error('Fatal error in MEXC monitor:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ error: errorMessage }),

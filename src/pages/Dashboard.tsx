@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import DashboardHeader from '@/components/DashboardHeader';
 import DashboardStats from '@/components/DashboardStats';
 import MonitoringStatus from '@/components/MonitoringStatus';
+import StartMonitoringButton from '@/components/StartMonitoringButton';
 import OpportunitiesTable from '@/components/OpportunitiesTable';
 import ArbitrageHeatmap from '@/components/ArbitrageHeatmap';
 
@@ -37,6 +38,11 @@ const Dashboard = () => {
       <DashboardHeader />
       
       <main className="container mx-auto px-4 py-8 space-y-8 animate-slide-up">
+        {/* Botão para Iniciar Monitoramento */}
+        <div className="flex justify-center">
+          <StartMonitoringButton />
+        </div>
+
         {/* Status do Monitoramento */}
         <MonitoringStatus />
 
