@@ -232,38 +232,19 @@ Deno.serve(async (req) => {
       console.log(`   - Pares com preços válidos: ${pairsWithValidPrices}`);
       console.log(`   - Pares com volume adequado: ${pairsWithValidVolume}`);
       console.log(`   - Oportunidades criadas: ${opportunitiesFound}`);
-      console.log(`   - Registros para inserir: ${opportunities.length}`);
+      console.log(`   - Retornando ${opportunities.length} oportunidades`);
       
-      // Inserir todas as oportunidades no banco
-      if (opportunities.length > 0) {
-        console.log(`\n💾 Inserindo ${opportunities.length} oportunidades no banco...`);
-        
-        const { data, error } = await supabase
-          .from('arbitrage_opportunities')
-          .insert(opportunities)
-          .select();
-
-        if (error) {
-          console.error('❌ Error inserting opportunities:', error);
-          console.error('Error details:', JSON.stringify(error, null, 2));
-        } else {
-          console.log(`✅ Inserted ${opportunities.length} opportunities successfully`);
-          if (data && data.length > 0) {
-            console.log(`✅ First inserted record:`, data[0]);
-          }
-        }
-      } else {
-        console.log('⚠️ No opportunities to insert (array vazio)');
-      }
+      return opportunities;
     };
 
     // Executar processamento
-    await processOpportunities();
+    const opportunities = await processOpportunities();
 
     return new Response(
       JSON.stringify({ 
         message: 'Dados processados com sucesso',
-        status: 'completed'
+        status: 'completed',
+        opportunities: opportunities || []
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

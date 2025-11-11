@@ -3,20 +3,27 @@ import { Button } from '@/components/ui/button';
 import { Play, Square, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useOpportunities } from '@/hooks/useOpportunities';
 
 const StartMonitoringButton = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [intervalId, setIntervalId] = useState<number | null>(null);
+  const { setOpportunities } = useOpportunities();
 
   const callMonitor = async () => {
     try {
-      const { error } = await supabase.functions.invoke('mexc-arbitrage-monitor', {
+      const { data, error } = await supabase.functions.invoke('mexc-arbitrage-monitor', {
         method: 'POST'
       });
 
       if (error) {
         console.error('Error calling monitor:', error);
+        return;
+      }
+
+      if (data?.opportunities) {
+        setOpportunities(data.opportunities);
       }
     } catch (error) {
       console.error('Error calling monitor:', error);
@@ -54,6 +61,7 @@ const StartMonitoringButton = () => {
       setIntervalId(null);
     }
     setIsRunning(false);
+    setOpportunities([]);
     toast.info('Monitor parado', {
       description: 'O monitoramento foi interrompido'
     });

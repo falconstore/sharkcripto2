@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useMemo } from 'react';
+import { useOpportunities } from '@/hooks/useOpportunities';
 import {
   Table,
   TableBody,
@@ -13,92 +13,14 @@ import { Button } from '@/components/ui/button';
 import { Search, ArrowUpDown, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-interface Opportunity {
-  id: string;
-  pair_symbol: string;
-  spot_bid_price: number;
-  spot_volume_24h: number;
-  futures_ask_price: number;
-  futures_volume_24h: number;
-  spread_net_percent: number;
-  timestamp: string;
-}
-
 type SortField = 'pair_symbol' | 'spread_net_percent' | 'spot_volume_24h' | 'futures_volume_24h';
 type SortOrder = 'asc' | 'desc';
 
 const OpportunitiesTable = () => {
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const { opportunities } = useOpportunities();
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('spread_net_percent');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [flashingRows, setFlashingRows] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    // Buscar dados iniciais
-    fetchOpportunities();
-
-    // Configurar realtime
-    const channel = supabase
-      .channel('arbitrage-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'arbitrage_opportunities'
-        },
-        (payload) => {
-          console.log('Realtime update:', payload);
-          
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const newOpp = payload.new as Opportunity;
-            
-            setOpportunities(prev => {
-              const existing = prev.find(o => o.id === newOpp.id);
-              
-              if (existing) {
-                // Atualizar existente
-                return prev.map(o => o.id === newOpp.id ? newOpp : o);
-              } else {
-                // Adicionar novo
-                return [newOpp, ...prev].slice(0, 100); // Limitar a 100 oportunidades
-              }
-            });
-
-            // Flash animation
-            setFlashingRows(prev => new Set(prev).add(newOpp.id));
-            setTimeout(() => {
-              setFlashingRows(prev => {
-                const next = new Set(prev);
-                next.delete(newOpp.id);
-                return next;
-              });
-            }, 600);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const fetchOpportunities = async () => {
-    const { data, error } = await supabase
-      .from('arbitrage_opportunities')
-      .select('*')
-      .eq('is_active', true)
-      .order('timestamp', { ascending: false })
-      .limit(100);
-
-    if (error) {
-      console.error('Error fetching opportunities:', error);
-    } else if (data) {
-      setOpportunities(data);
-    }
-  };
 
   const filteredAndSorted = useMemo(() => {
     let filtered = opportunities;
@@ -236,13 +158,10 @@ const OpportunitiesTable = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredAndSorted.map((opp) => (
+                filteredAndSorted.map((opp, index) => (
                   <TableRow 
-                    key={opp.id}
-                    className={`
-                      transition-all duration-300 hover:bg-accent/50
-                      ${flashingRows.has(opp.id) ? 'flash-gold' : ''}
-                    `}
+                    key={opp.timestamp + opp.pair_symbol + index}
+                    className="transition-all duration-300 hover:bg-accent/50"
                   >
                     <TableCell className="font-mono font-semibold">
                       {opp.pair_symbol}
