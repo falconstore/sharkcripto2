@@ -129,14 +129,22 @@ Deno.serve(async (req) => {
       let pairsProcessed = 0;
       let pairsWithValidPrices = 0;
       let pairsSkippedInvalidPrice = 0;
+      let pairsWithZeroVolume = 0;
       const opportunities: any[] = [];
       const skippedPairs: string[] = [];
+      const zeroVolumePairs: string[] = [];
+      const targetPairs = ['RAIL', 'BAGWORK', 'ORE', 'BOBBSC', 'BTC', 'ETH'];
 
       // Processar cada par que existe em ambos os mercados (symbol agora é o baseSymbol: BTC, ETH, etc)
       spotTickers.forEach((spotTicker, baseSymbol) => {
         const futuresTicker = futuresTickers.get(baseSymbol);
         
-        if (!futuresTicker) return;
+        if (!futuresTicker) {
+          if (targetPairs.includes(baseSymbol)) {
+            console.log(`❌ ${baseSymbol} - Não encontrado em futuros`);
+          }
+          return;
+        }
         
         pairsProcessed++;
 
@@ -147,10 +155,27 @@ Deno.serve(async (req) => {
         const futuresAskPrice = parseFloat(futuresTicker.ask1);
         const futuresVolume = parseFloat(futuresTicker.volume24) || 0;
 
+        // Log detalhado para moedas específicas
+        if (targetPairs.includes(baseSymbol)) {
+          console.log(`🔍 ${baseSymbol} - Spot: bid=${spotBidPrice}, ask=${spotAskPrice}, vol=${spotVolume}`);
+          console.log(`🔍 ${baseSymbol} - Fut: bid=${futuresBidPrice}, ask=${futuresAskPrice}, vol=${futuresVolume}`);
+        }
+
+        // Contar pares com volume zero
+        if (spotVolume === 0 && futuresVolume === 0) {
+          pairsWithZeroVolume++;
+          if (zeroVolumePairs.length < 10) {
+            zeroVolumePairs.push(baseSymbol);
+          }
+        }
+
         // Validar APENAS preços (volume pode ser 0)
         if (!spotBidPrice || !spotAskPrice || !futuresBidPrice || !futuresAskPrice ||
             spotBidPrice <= 0 || spotAskPrice <= 0 || futuresBidPrice <= 0 || futuresAskPrice <= 0) {
           pairsSkippedInvalidPrice++;
+          if (targetPairs.includes(baseSymbol)) {
+            console.log(`❌ ${baseSymbol} - IGNORADO por preços inválidos`);
+          }
           if (pairsSkippedInvalidPrice <= 10) {
             skippedPairs.push(`${baseSymbol} (preços inválidos)`);
           }
@@ -158,6 +183,10 @@ Deno.serve(async (req) => {
         }
 
         pairsWithValidPrices++;
+        
+        if (targetPairs.includes(baseSymbol)) {
+          console.log(`✅ ${baseSymbol} - ADICIONADO às oportunidades (vol=${spotVolume})`);
+        }
 
         // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry) - ENTRADA
         // Comprar Spot (pagar askPrice) + Vender Futures/Short (receber bidPrice)
@@ -200,9 +229,13 @@ Deno.serve(async (req) => {
       console.log(`\n📊 Resumo do processamento:`);
       console.log(`   - Pares totais processados: ${pairsProcessed}`);
       console.log(`   - Pares com preços válidos: ${pairsWithValidPrices}`);
+      console.log(`   - Pares com volume ZERO: ${pairsWithZeroVolume}`);
       console.log(`   - Pares ignorados por preços inválidos: ${pairsSkippedInvalidPrice}`);
       console.log(`   - Oportunidades criadas (incluindo volume 0): ${opportunitiesFound}`);
       console.log(`   - Retornando ${opportunities.length} oportunidades`);
+      if (zeroVolumePairs.length > 0) {
+        console.log(`   - Exemplos com volume ZERO: ${zeroVolumePairs.join(', ')}`);
+      }
       if (skippedPairs.length > 0) {
         console.log(`   - Exemplos de pares ignorados: ${skippedPairs.join(', ')}`);
       }
