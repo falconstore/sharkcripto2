@@ -38,9 +38,10 @@ const Dashboard = () => {
       <DashboardHeader />
       
       <main className="container mx-auto px-4 py-8 space-y-8 animate-slide-up">
-        {/* Botão para Iniciar Monitoramento */}
-        <div className="flex justify-center">
+        {/* Botões de Ação */}
+        <div className="flex justify-center gap-3">
           <StartMonitoringButton />
+          <ArbitrageCalculator />
         </div>
 
         {/* Status do Monitoramento */}
@@ -48,9 +49,6 @@ const Dashboard = () => {
 
         {/* Stats Cards */}
         <DashboardStats />
-
-        {/* Calculadora de Arbitragem */}
-        <ArbitrageCalculator />
 
         {/* Tabela de Oportunidades */}
         <OpportunitiesTable />
