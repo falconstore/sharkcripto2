@@ -1,38 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import protobuf from "https://esm.sh/protobufjs@7.2.5";
 
-const SPOT_WS_URL = "wss://wbs-api.mexc.com/ws";
+const SPOT_API_URL = "https://api.mexc.com/api/v3/ticker/24hr";
 const FUTURES_WS_URL = "wss://contract.mexc.com/edge";
 
 // Taxas da MEXC
 const SPOT_TAKER_FEE = 0.001; // 0.1%
 const FUTURES_TAKER_FEE = 0.0002; // 0.02%
-
-// Definir schema Protobuf para MEXC Spot miniTickers
-const miniTickersProto = `
-syntax = "proto3";
-
-message MiniTicker {
-  string symbol = 1;
-  string price = 2;
-  string volume = 3;
-  string high = 4;
-  string low = 5;
-  int64 time = 6;
-}
-
-message MiniTickers {
-  repeated MiniTicker items = 1;
-}
-
-message Response {
-  MiniTickers publicMiniTickers = 1;
-}
-`;
-
-// Criar root do protobuf
-const root = protobuf.parse(miniTickersProto).root;
-const ResponseMessage = root.lookupType("Response");
 
 interface SpotTicker {
   symbol: string;
@@ -78,12 +51,11 @@ serve(async (req) => {
   
   console.log("=== Client WebSocket Connected ===");
 
-  let spotWs: WebSocket | null = null;
   let futuresWs: WebSocket | null = null;
   let spotData: Map<string, SpotTicker> = new Map();
   let futuresData: Map<string, FuturesTicker> = new Map();
   let isConnecting = false;
-  let reconnectTimeout: number | null = null;
+  let spotUpdateInterval: number | null = null;
 
   const processAndSendOpportunities = () => {
     if (spotData.size === 0 || futuresData.size === 0) {
@@ -171,95 +143,46 @@ serve(async (req) => {
     }
   };
 
-  const connectSpotWebSocket = () => {
-    console.log("🔌 Conectando ao WebSocket Spot da MEXC...");
-    
-    spotWs = new WebSocket(SPOT_WS_URL);
-
-    spotWs.onopen = () => {
-      console.log("✅ WebSocket Spot conectado!");
+  const fetchSpotData = async () => {
+    try {
+      console.log("📡 Buscando dados Spot da MEXC API...");
+      const response = await fetch(SPOT_API_URL);
       
-      // Subscrever ao canal de miniTickers (todos os pares)
-      const subscribeMsg = {
-        method: "SUBSCRIPTION",
-        params: ["spot@public.miniTickers.v3.api.pb@UTC+8"]
-      };
-      spotWs?.send(JSON.stringify(subscribeMsg));
-      console.log("📡 Subscrito ao canal de miniTickers");
-
-      // Configurar ping para manter conexão viva
-      const pingInterval = setInterval(() => {
-        if (spotWs?.readyState === WebSocket.OPEN) {
-          spotWs.send(JSON.stringify({ method: "PING" }));
-        } else {
-          clearInterval(pingInterval);
-        }
-      }, 20000); // Ping a cada 20 segundos
-    };
-
-    spotWs.onmessage = async (event) => {
-      try {
-        // Verificar se é uma mensagem texto (JSON) ou binária (Protobuf)
-        if (typeof event.data === 'string') {
-          const data = JSON.parse(event.data);
-          // Ignorar mensagens de confirmação e PONG
-          if (data.code !== undefined || data.msg === "PONG") {
-            return;
-          }
-          return;
-        }
-
-        // Processar dados binários (Protobuf)
-        if (event.data instanceof Blob) {
-          const arrayBuffer = await event.data.arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
-          
-          // Decodificar Protobuf
-          const message = ResponseMessage.decode(uint8Array);
-          const data = ResponseMessage.toObject(message, {
-            longs: String,
-            enums: String,
-            bytes: String,
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const tickers = await response.json();
+      
+      // Processar apenas pares USDT
+      let count = 0;
+      for (const ticker of tickers) {
+        if (ticker.symbol.endsWith('USDT')) {
+          spotData.set(ticker.symbol, {
+            symbol: ticker.symbol,
+            price: ticker.lastPrice,
+            volume: ticker.volume,
+            high: ticker.highPrice,
+            low: ticker.lowPrice,
           });
-
-          // Processar miniTickers
-          if (data.publicMiniTickers?.items) {
-            const items = data.publicMiniTickers.items;
-            items.forEach((ticker: any) => {
-              if (ticker.symbol.endsWith('USDT')) {
-                spotData.set(ticker.symbol, {
-                  symbol: ticker.symbol,
-                  price: ticker.price,
-                  volume: ticker.volume,
-                  high: ticker.high,
-                  low: ticker.low,
-                });
-              }
-            });
-            
-            console.log(`📈 Spot atualizado: ${spotData.size} pares`);
-            processAndSendOpportunities();
-          }
+          count++;
         }
-      } catch (error) {
-        console.error("❌ Erro ao processar mensagem Spot:", error);
       }
-    };
-
-    spotWs.onerror = (error) => {
-      console.error("❌ Erro no WebSocket Spot:", error);
-    };
-
-    spotWs.onclose = () => {
-      console.log("🔌 WebSocket Spot desconectado");
-      spotWs = null;
       
-      // Reconectar após 5 segundos
-      if (!isConnecting) {
-        console.log("♻️ Reconectando Spot em 5s...");
-        setTimeout(connectSpotWebSocket, 5000);
-      }
-    };
+      console.log(`📈 Spot atualizado via REST: ${count} pares USDT`);
+      processAndSendOpportunities();
+    } catch (error) {
+      console.error("❌ Erro ao buscar dados Spot:", error);
+    }
+  };
+
+  const startSpotUpdates = () => {
+    // Buscar dados imediatamente
+    fetchSpotData();
+    
+    // Atualizar a cada 2 segundos
+    spotUpdateInterval = setInterval(fetchSpotData, 2000);
+    console.log("✅ Atualizações Spot iniciadas (REST API a cada 2s)");
   };
 
   const connectFuturesWebSocket = () => {
@@ -339,8 +262,8 @@ serve(async (req) => {
     };
   };
 
-  // Conectar aos WebSockets da MEXC
-  connectSpotWebSocket();
+  // Iniciar atualizações Spot via REST e Futures via WebSocket
+  startSpotUpdates();
   connectFuturesWebSocket();
 
   // Lidar com desconexão do cliente
@@ -348,18 +271,14 @@ serve(async (req) => {
     console.log("🔌 Cliente desconectado");
     isConnecting = true;
     
-    if (spotWs) {
-      spotWs.close();
-      spotWs = null;
+    if (spotUpdateInterval) {
+      clearInterval(spotUpdateInterval);
+      spotUpdateInterval = null;
     }
     
     if (futuresWs) {
       futuresWs.close();
       futuresWs = null;
-    }
-
-    if (reconnectTimeout) {
-      clearTimeout(reconnectTimeout);
     }
   };
 
