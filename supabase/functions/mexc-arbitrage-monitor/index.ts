@@ -128,8 +128,9 @@ Deno.serve(async (req) => {
       let opportunitiesFound = 0;
       let pairsProcessed = 0;
       let pairsWithValidPrices = 0;
-      let pairsWithValidVolume = 0;
+      let pairsSkippedInvalidPrice = 0;
       const opportunities: any[] = [];
+      const skippedPairs: string[] = [];
 
       // Processar cada par que existe em ambos os mercados (symbol agora é o baseSymbol: BTC, ETH, etc)
       spotTickers.forEach((spotTicker, baseSymbol) => {
@@ -146,17 +147,17 @@ Deno.serve(async (req) => {
         const futuresAskPrice = parseFloat(futuresTicker.ask1);
         const futuresVolume = parseFloat(futuresTicker.volume24) || 0;
 
-        // Validar dados
+        // Validar APENAS preços (volume pode ser 0)
         if (!spotBidPrice || !spotAskPrice || !futuresBidPrice || !futuresAskPrice ||
             spotBidPrice <= 0 || spotAskPrice <= 0 || futuresBidPrice <= 0 || futuresAskPrice <= 0) {
-          if (pairsProcessed <= 5) {
-            console.log(`❌ ${baseSymbol} - Preços inválidos: spot bid=${spotBidPrice}, ask=${spotAskPrice}, fut bid=${futuresBidPrice}, ask=${futuresAskPrice}`);
+          pairsSkippedInvalidPrice++;
+          if (pairsSkippedInvalidPrice <= 10) {
+            skippedPairs.push(`${baseSymbol} (preços inválidos)`);
           }
           return;
         }
 
         pairsWithValidPrices++;
-        pairsWithValidVolume++;
 
         // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry) - ENTRADA
         // Comprar Spot (pagar askPrice) + Vender Futures/Short (receber bidPrice)
@@ -199,9 +200,12 @@ Deno.serve(async (req) => {
       console.log(`\n📊 Resumo do processamento:`);
       console.log(`   - Pares totais processados: ${pairsProcessed}`);
       console.log(`   - Pares com preços válidos: ${pairsWithValidPrices}`);
-      console.log(`   - Pares com volume adequado: ${pairsWithValidVolume}`);
-      console.log(`   - Oportunidades criadas: ${opportunitiesFound}`);
+      console.log(`   - Pares ignorados por preços inválidos: ${pairsSkippedInvalidPrice}`);
+      console.log(`   - Oportunidades criadas (incluindo volume 0): ${opportunitiesFound}`);
       console.log(`   - Retornando ${opportunities.length} oportunidades`);
+      if (skippedPairs.length > 0) {
+        console.log(`   - Exemplos de pares ignorados: ${skippedPairs.join(', ')}`);
+      }
       
       return opportunities;
     };
