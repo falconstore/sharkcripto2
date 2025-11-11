@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useOpportunities } from '@/hooks/useOpportunities';
+import { usePreferences } from '@/hooks/usePreferences';
 import {
   Table,
   TableBody,
@@ -10,20 +11,23 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, ArrowUpDown, TrendingUp } from 'lucide-react';
+import { Search, ArrowUpDown, TrendingUp, Star, Ban } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 type SortField = 'pair_symbol' | 'spread_net_percent' | 'spot_volume_24h' | 'futures_volume_24h';
 type SortOrder = 'asc' | 'desc';
 
 const OpportunitiesTable = () => {
   const { opportunities } = useOpportunities();
+  const { favorites, blacklist, toggleFavorite, toggleBlacklist } = usePreferences();
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('spread_net_percent');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   const filteredAndSorted = useMemo(() => {
-    let filtered = opportunities;
+    // Filtrar blacklist
+    let filtered = opportunities.filter(opp => !blacklist.has(opp.pair_symbol));
 
     // Filtrar por busca
     if (search) {
@@ -32,24 +36,31 @@ const OpportunitiesTable = () => {
       );
     }
 
-    // Ordenar
-    filtered.sort((a, b) => {
-      const aVal = a[sortField];
-      const bVal = b[sortField];
-      
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortOrder === 'asc' 
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
-      }
-      
-      return sortOrder === 'asc' 
-        ? (aVal as number) - (bVal as number)
-        : (bVal as number) - (aVal as number);
-    });
+    // Separar favoritos
+    const favoritesArray = filtered.filter(opp => favorites.has(opp.pair_symbol));
+    const nonFavoritesArray = filtered.filter(opp => !favorites.has(opp.pair_symbol));
 
-    return filtered;
-  }, [opportunities, search, sortField, sortOrder]);
+    // Ordenar cada grupo
+    const sortArray = (arr: typeof filtered) => {
+      return arr.sort((a, b) => {
+        const aVal = a[sortField];
+        const bVal = b[sortField];
+        
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          return sortOrder === 'asc' 
+            ? aVal.localeCompare(bVal)
+            : bVal.localeCompare(aVal);
+        }
+        
+        return sortOrder === 'asc' 
+          ? (aVal as number) - (bVal as number)
+          : (bVal as number) - (aVal as number);
+      });
+    };
+
+    // Favoritos sempre no topo
+    return [...sortArray(favoritesArray), ...sortArray(nonFavoritesArray)];
+  }, [opportunities, search, sortField, sortOrder, favorites, blacklist]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -102,6 +113,7 @@ const OpportunitiesTable = () => {
           <Table>
             <TableHeader>
               <TableRow className="bg-primary/5">
+                <TableHead className="w-[50px]"></TableHead>
                 <TableHead>
                   <Button
                     variant="ghost"
@@ -125,66 +137,77 @@ const OpportunitiesTable = () => {
                   </Button>
                 </TableHead>
                 <TableHead>Preço Spot (Compra)</TableHead>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSort('spot_volume_24h')}
-                    className="font-semibold"
-                  >
-                    Volume Spot 24h
-                    <ArrowUpDown className="ml-2 w-4 h-4" />
-                  </Button>
-                </TableHead>
                 <TableHead>Preço Futuros (Venda)</TableHead>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSort('futures_volume_24h')}
-                    className="font-semibold"
-                  >
-                    Volume Futuros 24h
-                    <ArrowUpDown className="ml-2 w-4 h-4" />
-                  </Button>
-                </TableHead>
+                <TableHead>Volume 24h (Spot / Futuro)</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredAndSorted.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     {search ? 'Nenhuma oportunidade encontrada' : 'Aguardando dados...'}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredAndSorted.map((opp, index) => (
-                  <TableRow 
-                    key={opp.timestamp + opp.pair_symbol + index}
-                    className="transition-all duration-300 hover:bg-accent/50"
-                  >
-                    <TableCell className="font-mono font-semibold">
-                      {opp.pair_symbol}
-                    </TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-gold/10 text-gold border border-gold/20 animate-pulse-gold">
-                        {formatNumber(opp.spread_net_percent, 4)}%
-                      </span>
-                    </TableCell>
-                    <TableCell className="font-mono">
-                      ${formatNumber(opp.spot_bid_price, 8)}
-                    </TableCell>
-                    <TableCell className="font-mono">
-                      {formatVolume(opp.spot_volume_24h)}
-                    </TableCell>
-                    <TableCell className="font-mono">
-                      ${formatNumber(opp.futures_ask_price, 8)}
-                    </TableCell>
-                    <TableCell className="font-mono">
-                      {formatVolume(opp.futures_volume_24h)}
-                    </TableCell>
-                  </TableRow>
-                ))
+                filteredAndSorted.map((opp, index) => {
+                  const isFavorite = favorites.has(opp.pair_symbol);
+                  return (
+                    <TableRow 
+                      key={opp.timestamp + opp.pair_symbol + index}
+                      className={`transition-all duration-300 hover:bg-accent/50 ${isFavorite ? 'bg-gold/5' : ''}`}
+                    >
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            toggleFavorite(opp.pair_symbol);
+                            toast.success(isFavorite ? 'Removido dos favoritos' : 'Adicionado aos favoritos');
+                          }}
+                          className="p-1 h-auto"
+                        >
+                          <Star 
+                            className={`w-4 h-4 ${isFavorite ? 'fill-gold text-gold' : 'text-muted-foreground'}`}
+                          />
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-mono font-semibold">
+                        {opp.pair_symbol}
+                      </TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-gold/10 text-gold border border-gold/20 animate-pulse-gold">
+                          {formatNumber(opp.spread_net_percent, 4)}%
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-mono">
+                        ${formatNumber(opp.spot_bid_price, 8)}
+                      </TableCell>
+                      <TableCell className="font-mono">
+                        ${formatNumber(opp.futures_ask_price, 8)}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        <div className="flex flex-col gap-0.5">
+                          <span>{formatVolume(opp.spot_volume_24h)}</span>
+                          <span className="text-muted-foreground">/ {formatVolume(opp.futures_volume_24h)}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            toggleBlacklist(opp.pair_symbol);
+                            toast.info(`${opp.pair_symbol} adicionado à blacklist`);
+                          }}
+                          className="p-1 h-auto text-destructive hover:text-destructive"
+                        >
+                          <Ban className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

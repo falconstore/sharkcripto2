@@ -1,89 +1,35 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useMemo } from 'react';
 import { TrendingUp, Activity, DollarSign } from 'lucide-react';
-
-interface Stats {
-  activeOpportunities: number;
-  bestSpread: number;
-  totalVolume24h: number;
-  uniquePairs: number;
-}
+import { useOpportunities } from '@/hooks/useOpportunities';
+import { usePreferences } from '@/hooks/usePreferences';
 
 const DashboardStats = () => {
-  const [stats, setStats] = useState<Stats>({
-    activeOpportunities: 0,
-    bestSpread: 0,
-    totalVolume24h: 0,
-    uniquePairs: 0,
-  });
+  const { opportunities } = useOpportunities();
+  const { blacklist } = usePreferences();
 
-  useEffect(() => {
-    fetchStats();
-
-    // Atualizar stats a cada 10 segundos
-    const interval = setInterval(fetchStats, 10000);
-
-    // Realtime para atualizações instantâneas
-    const channel = supabase
-      .channel('stats-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'arbitrage_opportunities'
-        },
-        () => {
-          fetchStats();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      clearInterval(interval);
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const fetchStats = async () => {
-    try {
-      // Buscar oportunidades ativas das últimas 5 minutos
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      
-      const { data, error } = await supabase
-        .from('arbitrage_opportunities')
-        .select('pair_symbol, spread_net_percent, spot_volume_24h, futures_volume_24h')
-        .eq('is_active', true)
-        .gte('timestamp', fiveMinutesAgo)
-        .order('timestamp', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching stats:', error);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        // Agrupar por par (pegar apenas o mais recente de cada)
-        const latestByPair = new Map<string, typeof data[0]>();
-        data.forEach(opp => {
-          if (!latestByPair.has(opp.pair_symbol)) {
-            latestByPair.set(opp.pair_symbol, opp);
-          }
-        });
-
-        const uniqueOpps = Array.from(latestByPair.values());
-        
-        setStats({
-          activeOpportunities: uniqueOpps.length,
-          bestSpread: Math.max(...uniqueOpps.map(o => o.spread_net_percent)),
-          totalVolume24h: uniqueOpps.reduce((sum, o) => sum + o.spot_volume_24h + o.futures_volume_24h, 0),
-          uniquePairs: latestByPair.size,
-        });
-      }
-    } catch (error) {
-      console.error('Error in fetchStats:', error);
+  const stats = useMemo(() => {
+    // Filtrar blacklist
+    const filtered = opportunities.filter(opp => !blacklist.has(opp.pair_symbol));
+    
+    if (filtered.length === 0) {
+      return {
+        activeOpportunities: 0,
+        bestSpread: 0,
+        totalVolume24h: 0,
+        uniquePairs: 0,
+      };
     }
-  };
+
+    // Contar apenas oportunidades com spread > 0.01%
+    const activeOpps = filtered.filter(opp => opp.spread_net_percent > 0.01);
+    
+    return {
+      activeOpportunities: activeOpps.length,
+      bestSpread: Math.max(...filtered.map(o => o.spread_net_percent)),
+      totalVolume24h: filtered.reduce((sum, o) => sum + o.spot_volume_24h + o.futures_volume_24h, 0),
+      uniquePairs: filtered.length,
+    };
+  }, [opportunities, blacklist]);
 
   const formatVolume = (num: number) => {
     if (num >= 1000000000) {
