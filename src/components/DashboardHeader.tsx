@@ -4,7 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { usePreferences } from '@/hooks/usePreferences';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Moon, Sun, LogOut, TrendingUp, BarChart3, Bell, Ban, Target, Wallet, Home, Zap } from 'lucide-react';
+import { Moon, Sun, LogOut, TrendingUp, BarChart3, Bell, Ban, Target, Wallet, Home } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationSettings from './NotificationSettings';
@@ -26,7 +26,6 @@ const DashboardHeader = () => {
   const [bankrollOpen, setBankrollOpen] = useState(false);
   
   const isStatisticsPage = location.pathname === '/statistics';
-  const isMexcTradingPage = location.pathname === '/mexc-trading';
 
   const getInitials = (email: string) => {
     return email.substring(0, 2).toUpperCase();
@@ -47,18 +46,6 @@ const DashboardHeader = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            {!isMexcTradingPage && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => navigate('/mexc-trading')}
-                className="hidden sm:flex bg-gold hover:bg-gold/90 text-black"
-              >
-                <Zap className="w-4 h-4 mr-2" />
-                Execução Automática
-              </Button>
-            )}
-            
             {isStatisticsPage ? (
               <Button
                 variant="outline"
@@ -69,7 +56,7 @@ const DashboardHeader = () => {
                 <Home className="w-4 h-4 mr-2" />
                 Dashboard
               </Button>
-            ) : !isMexcTradingPage && (
+            ) : (
               <Button
                 variant="outline"
                 size="sm"
