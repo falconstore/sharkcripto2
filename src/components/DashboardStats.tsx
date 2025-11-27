@@ -3,35 +3,34 @@ import { TrendingUp, Activity, DollarSign } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { usePreferences } from '@/hooks/usePreferences';
-
 const DashboardStats = () => {
-  const { opportunities } = useOpportunities();
-  const { blacklist } = usePreferences();
-
+  const {
+    opportunities
+  } = useOpportunities();
+  const {
+    blacklist
+  } = usePreferences();
   const stats = useMemo(() => {
     // Filtrar blacklist
     const filtered = opportunities.filter(opp => !blacklist.has(opp.pair_symbol));
-    
     if (filtered.length === 0) {
       return {
         activeOpportunities: 0,
         bestSpread: 0,
         totalVolume24h: 0,
-        uniquePairs: 0,
+        uniquePairs: 0
       };
     }
 
     // Contar apenas oportunidades com spread > 0.01%
     const activeOpps = filtered.filter(opp => opp.spread_net_percent > 0.01);
-    
     return {
       activeOpportunities: activeOpps.length,
       bestSpread: Math.max(...filtered.map(o => o.spread_net_percent)),
       totalVolume24h: filtered.reduce((sum, o) => sum + o.spot_volume_24h + o.futures_volume_24h, 0),
-      uniquePairs: filtered.length,
+      uniquePairs: filtered.length
     };
   }, [opportunities, blacklist]);
-
   const formatVolume = (num: number) => {
     if (num >= 1000000000) {
       return `$${(num / 1000000000).toFixed(2)}B`;
@@ -40,9 +39,7 @@ const DashboardStats = () => {
     }
     return `$${(num / 1000).toFixed(0)}K`;
   };
-
-  return (
-    <TooltipProvider>
+  return <TooltipProvider>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -80,16 +77,7 @@ const DashboardStats = () => {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift hover:shadow-lg transition-all cursor-pointer">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-muted-foreground">Melhor Spread</div>
-                <TrendingUp className="w-6 h-6 text-profit drop-shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
-              </div>
-              <div className="text-3xl font-bold text-profit animate-fade-in">
-                {stats.bestSpread > 0 ? `${stats.bestSpread.toFixed(4)}%` : '--'}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Spread líquido máximo</p>
-            </div>
+            
           </TooltipTrigger>
           <TooltipContent>
             <p>Maior diferença percentual entre preços spot e futuros (após taxas)</p>
@@ -114,8 +102,6 @@ const DashboardStats = () => {
           </TooltipContent>
         </Tooltip>
       </div>
-    </TooltipProvider>
-  );
+    </TooltipProvider>;
 };
-
 export default DashboardStats;
