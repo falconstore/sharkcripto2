@@ -101,7 +101,7 @@ const DashboardHeader = () => {
                 </div>
 
                 <Button variant="outline" size="icon" onClick={signOut} title="Sair" className="hover:text-destructive-foreground bg-primary-foreground">
-                  <LogOut className="w-5 h-5 bg-destructive-foreground" />
+                  <LogOut className="w-5 h-5 text-destructive-foreground bg-primary" />
                 </Button>
               </>}
           </div>
