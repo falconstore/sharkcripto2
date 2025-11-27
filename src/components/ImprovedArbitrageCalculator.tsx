@@ -17,21 +17,33 @@ import { usePriceHistory } from '@/hooks/usePriceHistory';
 import { useBankroll } from '@/hooks/useBankroll';
 import { Sparklines, SparklinesLine } from 'react-sparklines';
 import CalculationHistoryModal from './CalculationHistoryModal';
-
 const ImprovedArbitrageCalculator = () => {
-  const { opportunities } = useOpportunities();
-  const { rate: taxaCambioAtual, source: exchangeSource } = useExchangeRate();
-  const { saveCalculation, history } = useCalculationHistory();
-  const { addPoint, getHistory } = usePriceHistory();
-  const { addOperation } = useBankroll();
+  const {
+    opportunities
+  } = useOpportunities();
+  const {
+    rate: taxaCambioAtual,
+    source: exchangeSource
+  } = useExchangeRate();
+  const {
+    saveCalculation,
+    history
+  } = useCalculationHistory();
+  const {
+    addPoint,
+    getHistory
+  } = usePriceHistory();
+  const {
+    addOperation
+  } = useBankroll();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [saveToBank, setSaveToBank] = useState(false);
-  
+
   // Estados básicos
   const [valorInvestido, setValorInvestido] = useState<string>('');
   const [selectedPair, setSelectedPair] = useState<string>('');
   const [trackingActive, setTrackingActive] = useState(false);
-  
+
   // Estados de entrada/saída
   const [entradaSpot, setEntradaSpot] = useState<string>('');
   const [entradaFuturo, setEntradaFuturo] = useState<string>('');
@@ -44,7 +56,6 @@ const ImprovedArbitrageCalculator = () => {
   const [varEntrada, setVarEntrada] = useState<number>(0);
   const [varFech, setVarFech] = useState<number>(0);
   const [varTotal, setVarTotal] = useState<number>(0);
-
   const TAXA = 0.001; // 0.1%
 
   // Oportunidade selecionada
@@ -65,33 +76,17 @@ const ImprovedArbitrageCalculator = () => {
       const interval = setInterval(() => {
         setFechamentoSpot(selectedOpp.spot_bid_price.toString());
         setFechamentoFuturo(selectedOpp.futures_ask_price.toString());
-        
-        calcular(
-          parseFloat(valorInvestido) || 0,
-          parseFloat(entradaSpot) || 0,
-          parseFloat(entradaFuturo) || 0,
-          selectedOpp.spot_bid_price,
-          selectedOpp.futures_ask_price
-        );
+        calcular(parseFloat(valorInvestido) || 0, parseFloat(entradaSpot) || 0, parseFloat(entradaFuturo) || 0, selectedOpp.spot_bid_price, selectedOpp.futures_ask_price);
       }, 1000);
-      
       return () => clearInterval(interval);
     }
   }, [selectedOpp, trackingActive, valorInvestido, entradaSpot, entradaFuturo]);
-
-  const calcular = (
-    valor?: number,
-    spotEntrada?: number,
-    futuroEntrada?: number,
-    spotFechamento?: number,
-    futuroFechamento?: number
-  ) => {
+  const calcular = (valor?: number, spotEntrada?: number, futuroEntrada?: number, spotFechamento?: number, futuroFechamento?: number) => {
     const v = valor !== undefined ? valor : parseFloat(valorInvestido) || 0;
     const sE = spotEntrada !== undefined ? spotEntrada : parseFloat(entradaSpot) || 0;
     const fE = futuroEntrada !== undefined ? futuroEntrada : parseFloat(entradaFuturo) || 0;
     const sF = spotFechamento !== undefined ? spotFechamento : parseFloat(fechamentoSpot) || 0;
     const fF = futuroFechamento !== undefined ? futuroFechamento : parseFloat(fechamentoFuturo) || 0;
-
     if (!v || !sE || !fE) {
       setLucroUSD(0);
       setLucroBRL(0);
@@ -100,23 +95,17 @@ const ImprovedArbitrageCalculator = () => {
       setVarTotal(0);
       return;
     }
-
-    const variacaoEntrada = (fE / sE - 1);
-    const variacaoFechamento = (sF > 0 && fF > 0)
-      ? ((sF - fF) / sF)
-      : 0;
+    const variacaoEntrada = fE / sE - 1;
+    const variacaoFechamento = sF > 0 && fF > 0 ? (sF - fF) / sF : 0;
     const variacaoTotal = variacaoEntrada + variacaoFechamento;
-
-    const lucroEmUSD = (v * variacaoTotal) * (1 - TAXA);
+    const lucroEmUSD = v * variacaoTotal * (1 - TAXA);
     const lucroEmBRL = lucroEmUSD * taxaCambioAtual;
-
     setLucroUSD(lucroEmUSD);
     setLucroBRL(lucroEmBRL);
     setVarEntrada(variacaoEntrada * 100);
     setVarFech(variacaoFechamento * 100);
     setVarTotal(variacaoTotal * 100);
   };
-
   const limpar = () => {
     setValorInvestido('');
     setSelectedPair('');
@@ -131,25 +120,21 @@ const ImprovedArbitrageCalculator = () => {
     setVarFech(0);
     setVarTotal(0);
   };
-
   const spreadEntrada = useMemo(() => {
     if (!entradaSpot || !entradaFuturo) return 0;
     const sE = parseFloat(entradaSpot);
     const fE = parseFloat(entradaFuturo);
-    return ((fE / sE - 1) * 100);
+    return (fE / sE - 1) * 100;
   }, [entradaSpot, entradaFuturo]);
-
   const spreadSaida = useMemo(() => {
     if (!fechamentoSpot || !fechamentoFuturo) return 0;
     const sF = parseFloat(fechamentoSpot);
     const fF = parseFloat(fechamentoFuturo);
-    return (((sF - fF) / sF) * 100);
+    return (sF - fF) / sF * 100;
   }, [fechamentoSpot, fechamentoFuturo]);
-
-  return (
-    <Dialog>
+  return <Dialog>
       <DialogTrigger asChild>
-        <Button className="bg-gradient-primary">
+        <Button className="bg-gradient-primary text-left text-secondary-foreground bg-primary">
           <Calculator className="w-4 h-4 mr-2" />
           Calculadora de Arbitragem
         </Button>
@@ -162,11 +147,7 @@ const ImprovedArbitrageCalculator = () => {
                 <Calculator className="w-5 h-5 text-gold" />
                 Calculadora de Arbitragem Avançada
               </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setHistoryOpen(true)}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
                 <HistoryIcon className="w-4 h-4 mr-2" />
                 Histórico ({history?.length || 0})
               </Button>
@@ -183,14 +164,7 @@ const ImprovedArbitrageCalculator = () => {
                   <Label htmlFor="valorInvestido" className="text-sm font-medium">
                     Valor Investido (USD)
                   </Label>
-                  <Input
-                    id="valorInvestido"
-                    type="number"
-                    placeholder="0.00"
-                    value={valorInvestido}
-                    onChange={(e) => setValorInvestido(e.target.value)}
-                    className="font-mono"
-                  />
+                  <Input id="valorInvestido" type="number" placeholder="0.00" value={valorInvestido} onChange={e => setValorInvestido(e.target.value)} className="font-mono" />
                 </div>
 
                 {/* Seletor de Moeda */}
@@ -201,11 +175,9 @@ const ImprovedArbitrageCalculator = () => {
                       <SelectValue placeholder="Escolha uma oportunidade para ver dados ao vivo..." />
                     </SelectTrigger>
                     <SelectContent>
-                  {opportunities.map((opp) => (
-                    <SelectItem key={opp.pair_symbol} value={opp.pair_symbol}>
+                  {opportunities.map(opp => <SelectItem key={opp.pair_symbol} value={opp.pair_symbol}>
                       <span className="font-mono">{opp.pair_symbol}</span>
-                    </SelectItem>
-                  ))}
+                    </SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -220,48 +192,28 @@ const ImprovedArbitrageCalculator = () => {
                       <Label htmlFor="entradaSpot" className="text-xs text-muted-foreground">
                         Entrada Spot
                       </Label>
-                      <Input
-                        id="entradaSpot"
-                        type="number"
-                        placeholder="0.00000000"
-                        value={entradaSpot}
-                        onChange={(e) => setEntradaSpot(e.target.value)}
-                        className="font-mono text-sm"
-                      />
+                      <Input id="entradaSpot" type="number" placeholder="0.00000000" value={entradaSpot} onChange={e => setEntradaSpot(e.target.value)} className="font-mono text-sm" />
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="entradaFuturo" className="text-xs text-muted-foreground">
                         Entrada Futuro
                       </Label>
-                      <Input
-                        id="entradaFuturo"
-                        type="number"
-                        placeholder="0.00000000"
-                        value={entradaFuturo}
-                        onChange={(e) => setEntradaFuturo(e.target.value)}
-                        className="font-mono text-sm"
-                      />
+                      <Input id="entradaFuturo" type="number" placeholder="0.00000000" value={entradaFuturo} onChange={e => setEntradaFuturo(e.target.value)} className="font-mono text-sm" />
                     </div>
                   </div>
                 </div>
 
                 {/* Toggle de Tracking */}
-                {selectedPair && (
-                  <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-accent/20">
+                {selectedPair && <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-accent/20">
                     <div className="flex items-center gap-2">
                       {trackingActive ? <Play className="w-4 h-4 text-profit" /> : <Pause className="w-4 h-4 text-muted-foreground" />}
                       <Label htmlFor="tracking" className="text-sm cursor-pointer">
                         Acompanhar saída automaticamente
                       </Label>
                     </div>
-                    <Switch
-                      id="tracking"
-                      checked={trackingActive}
-                      onCheckedChange={setTrackingActive}
-                    />
-                  </div>
-                )}
+                    <Switch id="tracking" checked={trackingActive} onCheckedChange={setTrackingActive} />
+                  </div>}
 
                 {/* Preços de Fechamento */}
                 <div className="space-y-3">
@@ -271,93 +223,61 @@ const ImprovedArbitrageCalculator = () => {
                       <Label htmlFor="fechamentoSpot" className="text-xs text-muted-foreground">
                         Fechamento Spot
                       </Label>
-                      <Input
-                        id="fechamentoSpot"
-                        type="number"
-                        placeholder="0.00000000"
-                        value={fechamentoSpot}
-                        onChange={(e) => setFechamentoSpot(e.target.value)}
-                        className="font-mono text-sm"
-                        disabled={trackingActive}
-                      />
+                      <Input id="fechamentoSpot" type="number" placeholder="0.00000000" value={fechamentoSpot} onChange={e => setFechamentoSpot(e.target.value)} className="font-mono text-sm" disabled={trackingActive} />
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="fechamentoFuturo" className="text-xs text-muted-foreground">
                         Fechamento Futuro
                       </Label>
-                      <Input
-                        id="fechamentoFuturo"
-                        type="number"
-                        placeholder="0.00000000"
-                        value={fechamentoFuturo}
-                        onChange={(e) => setFechamentoFuturo(e.target.value)}
-                        className="font-mono text-sm"
-                        disabled={trackingActive}
-                      />
+                      <Input id="fechamentoFuturo" type="number" placeholder="0.00000000" value={fechamentoFuturo} onChange={e => setFechamentoFuturo(e.target.value)} className="font-mono text-sm" disabled={trackingActive} />
                     </div>
                   </div>
                 </div>
 
                 {/* Checkbox Salvar na Banca */}
                 <div className="flex items-center space-x-2 pt-2">
-                  <Checkbox 
-                    id="save-to-bank"
-                    checked={saveToBank}
-                    onCheckedChange={(checked) => setSaveToBank(checked as boolean)}
-                  />
-                  <Label 
-                    htmlFor="save-to-bank" 
-                    className="text-sm font-medium leading-none cursor-pointer"
-                  >
+                  <Checkbox id="save-to-bank" checked={saveToBank} onCheckedChange={checked => setSaveToBank(checked as boolean)} />
+                  <Label htmlFor="save-to-bank" className="text-sm font-medium leading-none cursor-pointer">
                     Salvar operação na banca
                   </Label>
                 </div>
 
                 {/* Botões */}
                 <div className="flex gap-3 pt-2">
-                  <Button 
-                    onClick={() => calcular()} 
-                    className="flex-1 bg-gradient-primary"
-                    disabled={trackingActive}
-                  >
+                  <Button onClick={() => calcular()} className="flex-1 bg-gradient-primary" disabled={trackingActive}>
                     <Calculator className="w-4 h-4 mr-2" />
                     {trackingActive ? 'Calculando...' : 'Calcular'}
                   </Button>
-                  <Button 
-                    onClick={() => {
-                      const calc = {
-                        pair_symbol: selectedPair || null,
-                        valor_investido: parseFloat(valorInvestido) || 0,
-                        entrada_spot: parseFloat(entradaSpot) || 0,
-                        entrada_futuro: parseFloat(entradaFuturo) || 0,
-                        fechamento_spot: parseFloat(fechamentoSpot) || null,
-                        fechamento_futuro: parseFloat(fechamentoFuturo) || null,
-                        lucro_usd: lucroUSD,
-                        lucro_brl: lucroBRL,
-                        var_entrada: varEntrada,
-                        var_fechamento: varFech,
-                        var_total: varTotal,
-                        exchange_rate: taxaCambioAtual
-                      };
-                      
-                      saveCalculation(calc);
-                      
-                      // Se marcado, salvar também na banca
-                      if (saveToBank) {
-                        addOperation({
-                          operation_type: 'trade',
-                          amount_usdt: parseFloat(valorInvestido) || 0,
-                          profit_usdt: lucroUSD,
-                          profit_brl: lucroBRL,
-                          pair_symbol: selectedPair,
-                          notes: `Trade ${selectedPair} - Var: ${varTotal.toFixed(2)}%`
-                        });
-                      }
-                    }}
-                    variant="outline"
-                    disabled={lucroUSD === 0}
-                  >
+                  <Button onClick={() => {
+                  const calc = {
+                    pair_symbol: selectedPair || null,
+                    valor_investido: parseFloat(valorInvestido) || 0,
+                    entrada_spot: parseFloat(entradaSpot) || 0,
+                    entrada_futuro: parseFloat(entradaFuturo) || 0,
+                    fechamento_spot: parseFloat(fechamentoSpot) || null,
+                    fechamento_futuro: parseFloat(fechamentoFuturo) || null,
+                    lucro_usd: lucroUSD,
+                    lucro_brl: lucroBRL,
+                    var_entrada: varEntrada,
+                    var_fechamento: varFech,
+                    var_total: varTotal,
+                    exchange_rate: taxaCambioAtual
+                  };
+                  saveCalculation(calc);
+
+                  // Se marcado, salvar também na banca
+                  if (saveToBank) {
+                    addOperation({
+                      operation_type: 'trade',
+                      amount_usdt: parseFloat(valorInvestido) || 0,
+                      profit_usdt: lucroUSD,
+                      profit_brl: lucroBRL,
+                      pair_symbol: selectedPair,
+                      notes: `Trade ${selectedPair} - Var: ${varTotal.toFixed(2)}%`
+                    });
+                  }
+                }} variant="outline" disabled={lucroUSD === 0}>
                     <Save className="w-4 h-4 mr-2" />
                     Salvar
                   </Button>
@@ -372,15 +292,12 @@ const ImprovedArbitrageCalculator = () => {
                 <div className="sticky top-0">
                   <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                     Dados ao Vivo
-                    {trackingActive && (
-                      <Badge variant="outline" className="bg-profit/10 text-profit animate-pulse">
+                    {trackingActive && <Badge variant="outline" className="bg-profit/10 text-profit animate-pulse">
                         AO VIVO
-                      </Badge>
-                    )}
+                      </Badge>}
                   </h3>
 
-                  {selectedOpp ? (
-                    <div className="space-y-3">
+                  {selectedOpp ? <div className="space-y-3">
                       <Card className="bg-accent/30 border-border">
                         <CardContent className="p-4 space-y-2">
                           <div className="text-xs text-muted-foreground">Preços Atuais</div>
@@ -421,45 +338,35 @@ const ImprovedArbitrageCalculator = () => {
 
                       {/* Sparkline de Spread */}
                       {(() => {
-                        const sparklineData = getHistory(selectedPair, 5);
-                        return sparklineData.length > 10 ? (
-                          <Card className="bg-accent/30 border-border">
+                    const sparklineData = getHistory(selectedPair, 5);
+                    return sparklineData.length > 10 ? <Card className="bg-accent/30 border-border">
                             <CardContent className="p-4">
                               <div className="text-xs text-muted-foreground mb-2">
                                 Spread (últimos 5 min)
                               </div>
                               <Sparklines data={sparklineData.map(p => p.spread)} height={40}>
-                                <SparklinesLine 
-                                  color={spreadEntrada > 0 ? '#22c55e' : '#ef4444'} 
-                                  style={{ strokeWidth: 2 }}
-                                />
+                                <SparklinesLine color={spreadEntrada > 0 ? '#22c55e' : '#ef4444'} style={{
+                            strokeWidth: 2
+                          }} />
                               </Sparklines>
                             </CardContent>
-                          </Card>
-                        ) : null;
-                      })()}
+                          </Card> : null;
+                  })()}
 
                       <div className="text-center">
-                        <Badge 
-                          variant="outline" 
-                          className={`text-xs ${varTotal >= 0 ? 'bg-profit/10 text-profit border-profit/20' : 'bg-destructive/10 text-destructive border-destructive/20'}`}
-                        >
+                        <Badge variant="outline" className={`text-xs ${varTotal >= 0 ? 'bg-profit/10 text-profit border-profit/20' : 'bg-destructive/10 text-destructive border-destructive/20'}`}>
                           {varTotal >= 0 ? 'POSITIVO' : 'NEGATIVO'}
                         </Badge>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
+                    </div> : <div className="text-center py-8 text-muted-foreground text-sm">
                       Selecione uma moeda para ver dados ao vivo
-                    </div>
-                  )}
+                    </div>}
                 </div>
               </div>
             </div>
 
             {/* Resultados */}
-            {(lucroUSD !== 0 || varTotal !== 0) && (
-              <div className="space-y-4 p-6 bg-gradient-to-br from-accent/30 to-accent/10 rounded-lg border border-border animate-fade-in">
+            {(lucroUSD !== 0 || varTotal !== 0) && <div className="space-y-4 p-6 bg-gradient-to-br from-accent/30 to-accent/10 rounded-lg border border-border animate-fade-in">
                 <h3 className="text-sm font-semibold text-center mb-4">Resultados da Operação</h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -514,27 +421,20 @@ const ImprovedArbitrageCalculator = () => {
                 <div className="text-xs text-muted-foreground text-center pt-3 border-t border-border">
                   Taxa de {(TAXA * 100).toFixed(2)}% já descontada • Câmbio BRL/USD: R$ {taxaCambioAtual.toFixed(2)}
                 </div>
-              </div>
-            )}
+              </div>}
           </CardContent>
         </Card>
       </DialogContent>
 
-      <CalculationHistoryModal
-        open={historyOpen}
-        onOpenChange={setHistoryOpen}
-        onLoadCalculation={(calc) => {
-          setSelectedPair(calc.pair_symbol || '');
-          setValorInvestido(calc.valor_investido.toString());
-          setEntradaSpot(calc.entrada_spot.toString());
-          setEntradaFuturo(calc.entrada_futuro.toString());
-          if (calc.fechamento_spot) setFechamentoSpot(calc.fechamento_spot.toString());
-          if (calc.fechamento_futuro) setFechamentoFuturo(calc.fechamento_futuro.toString());
-          calcular();
-        }}
-      />
-    </Dialog>
-  );
+      <CalculationHistoryModal open={historyOpen} onOpenChange={setHistoryOpen} onLoadCalculation={calc => {
+      setSelectedPair(calc.pair_symbol || '');
+      setValorInvestido(calc.valor_investido.toString());
+      setEntradaSpot(calc.entrada_spot.toString());
+      setEntradaFuturo(calc.entrada_futuro.toString());
+      if (calc.fechamento_spot) setFechamentoSpot(calc.fechamento_spot.toString());
+      if (calc.fechamento_futuro) setFechamentoFuturo(calc.fechamento_futuro.toString());
+      calcular();
+    }} />
+    </Dialog>;
 };
-
 export default ImprovedArbitrageCalculator;
