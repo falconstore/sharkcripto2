@@ -21,6 +21,7 @@ interface FuturesTicker {
   bid1: string;
   ask1: string;
   volume24: string;
+  fundingRate: string;
 }
 
 // Taxas da MEXC (em %)
@@ -263,6 +264,9 @@ Deno.serve(async (req) => {
         // Combinar ambas as direções em uma única oportunidade
         opportunitiesFound++;
         
+        // Capturar funding rate do ticker de futuros
+        const fundingRate = parseFloat(futuresTicker.fundingRate) || 0;
+
         const opp = {
           pair_symbol: baseSymbol,
           spot_bid_price: validSpotBid,
@@ -275,6 +279,7 @@ Deno.serve(async (req) => {
           spread_net_percent_saida: spreadNetShort,
           spot_taker_fee: SPOT_TAKER_FEE,
           futures_taker_fee: FUTURES_TAKER_FEE,
+          funding_rate: fundingRate,
           is_active: true,
           timestamp: new Date().toISOString()
         };

@@ -473,6 +473,14 @@ const OpportunitiesTable = () => {
                     <TooltipContent>CTRL/CMD + Click para adicionar à ordenação</TooltipContent>
                   </Tooltip>
                 </TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger className="font-semibold">
+                      Funding %
+                    </TooltipTrigger>
+                    <TooltipContent>Taxa de financiamento do contrato futuro</TooltipContent>
+                  </Tooltip>
+                </TableHead>
                 <TableHead>Cruzamentos (1h)</TableHead>
                 <TableHead>Preço Spot (Compra)</TableHead>
                 <TableHead>Preço Futuros (Venda)</TableHead>
@@ -526,7 +534,7 @@ const OpportunitiesTable = () => {
           <TableBody>
             {paginatedOpportunities.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                     {search ? 'Nenhuma oportunidade encontrada' : 'Aguardando dados...'}
                   </TableCell>
                 </TableRow>
@@ -580,6 +588,13 @@ const OpportunitiesTable = () => {
                         >
                           {formatNumber(opp.spread_net_percent_saida, 4)}%
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className={`font-mono font-semibold ${
+                          (opp.funding_rate || 0) >= 0 ? 'text-profit' : 'text-destructive'
+                        }`}>
+                          {((opp.funding_rate || 0) * 100).toFixed(4)}%
+                        </span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

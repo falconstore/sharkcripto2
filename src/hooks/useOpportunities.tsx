@@ -13,6 +13,7 @@ export interface Opportunity {
   spread_net_percent_saida: number;   // SHORT: Vender Spot + Comprar Futures
   spot_taker_fee: number;
   futures_taker_fee: number;
+  funding_rate?: number; // Taxa de financiamento do contrato futuro
   timestamp: string;
   is_active?: boolean;
   created_at?: string;
