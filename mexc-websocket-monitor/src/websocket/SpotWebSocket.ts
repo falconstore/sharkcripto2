@@ -1,10 +1,7 @@
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import { SpotTicker } from '../types';
-import { initProtobuf, decodeSpotMessage, isProtobufReady } from '../services/ProtobufDecoder';
 
-// Configuração - usar JSON por padrão (mais confiável)
-const USE_JSON_FORMAT = process.env.SPOT_USE_JSON !== 'false';
 const SPOT_WS_URL = 'wss://wbs-api.mexc.com/ws';
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 30;
 const HEARTBEAT_INTERVAL = 30000;
@@ -23,7 +20,6 @@ export class SpotWebSocket extends EventEmitter {
   private heartbeatIntervals: Map<number, NodeJS.Timeout> = new Map();
   private symbolsByConnection: Map<number, string[]> = new Map();
   private reconnecting: Set<number> = new Set();
-  private protobufInitialized = false;
   private firstMessageLogged = false;
   private tickerCount = 0;
   private volumeCache: Map<string, number> = new Map();
@@ -41,17 +37,7 @@ export class SpotWebSocket extends EventEmitter {
   }
 
   async connect(symbols: string[]): Promise<void> {
-    // Inicializar Protobuf se não usar JSON
-    if (!USE_JSON_FORMAT && !this.protobufInitialized) {
-      try {
-        await initProtobuf();
-        this.protobufInitialized = true;
-      } catch (err) {
-        console.error('❌ Spot: Falha ao inicializar Protobuf, usando JSON');
-      }
-    }
-
-    console.log(`📡 Spot: Usando formato ${USE_JSON_FORMAT ? 'JSON' : 'Protobuf'}`);
+    console.log(`📡 Spot: Conectando com formato JSON (campos lowercase)`);
 
     // Dividir símbolos em chunks de 30
     const chunks: string[][] = [];
@@ -109,15 +95,10 @@ export class SpotWebSocket extends EventEmitter {
     
     if (!ws || !symbols) return;
 
-    let params: string[];
-    
-    if (USE_JSON_FORMAT) {
-      // Formato JSON: spot@public.bookTicker.v3.api@BTCUSDT
-      params = symbols.map(s => `spot@public.bookTicker.v3.api@${s.toUpperCase()}USDT`);
-    } else {
-      // Formato Protobuf: spot@public.aggre.bookTicker.v3.api.pb@100ms@BTCUSDT
-      params = symbols.map(s => `spot@public.aggre.bookTicker.v3.api.pb@100ms@${s.toUpperCase()}USDT`);
-    }
+    // Usar o canal agregado que retorna JSON com campos lowercase
+    // Formato: spot@public.aggre.bookTicker.v3.api.pb@100ms@BTCUSDT
+    // Resposta JSON: { publicbookticker: { bidprice, askprice, ... }, symbol, sendtime }
+    const params = symbols.map(s => `spot@public.aggre.bookTicker.v3.api.pb@100ms@${s.toUpperCase()}USDT`);
     
     const subscribeMsg = {
       method: 'SUBSCRIPTION',
@@ -125,52 +106,22 @@ export class SpotWebSocket extends EventEmitter {
     };
     
     console.log(`📩 Spot[${connectionId}]: Enviando subscription para ${symbols.length} pares...`);
-    if (DEBUG_MODE) {
-      console.log(`📩 Spot[${connectionId}]: Exemplo de channel: ${params[0]}`);
-    }
+    console.log(`📩 Spot[${connectionId}]: Exemplo de channel: ${params[0]}`);
     
     ws.send(JSON.stringify(subscribeMsg));
   }
 
   private handleMessage(data: WebSocket.RawData, connectionId: number) {
     try {
-      // Converter para string se possível
-      const str = Buffer.isBuffer(data) ? data.toString() : 
+      // Converter para string
+      const str = Buffer.isBuffer(data) ? data.toString('utf8') : 
                   typeof data === 'string' ? data : null;
       
-      // Tentar processar como JSON primeiro
-      if (str && str.startsWith('{')) {
+      if (!str) return;
+      
+      // Tentar processar como JSON
+      if (str.startsWith('{')) {
         this.processJsonMessage(str, connectionId);
-        return;
-      }
-
-      // Se não for JSON e estivermos usando Protobuf
-      if (!USE_JSON_FORMAT && Buffer.isBuffer(data) && isProtobufReady()) {
-        const decoded = decodeSpotMessage(data);
-        if (decoded && decoded.bidPrice > 0) {
-          const symbol = decoded.symbol.replace('USDT', '');
-          const volume = this.volumeCache.get(symbol) || 0;
-          
-          const ticker: SpotTicker = {
-            symbol,
-            bidPrice: decoded.bidPrice,
-            askPrice: decoded.askPrice > 0 ? decoded.askPrice : decoded.bidPrice,
-            volume24h: volume,
-            timestamp: decoded.sendTime
-          };
-          
-          this.emit('ticker', ticker);
-          this.tickerCount++;
-          
-          if (!this.firstMessageLogged) {
-            console.log(`📦 Spot: Primeiro ticker Protobuf: ${symbol} bid=${decoded.bidPrice} ask=${decoded.askPrice} vol=${volume}`);
-            this.firstMessageLogged = true;
-          }
-          
-          if (this.tickerCount % 1000 === 0) {
-            console.log(`📊 Spot: ${this.tickerCount} tickers processados`);
-          }
-        }
       }
     } catch (err) {
       if (DEBUG_MODE || this.tickerCount < 10) {
@@ -196,62 +147,88 @@ export class SpotWebSocket extends EventEmitter {
         return;
       }
 
-      // Formato JSON do bookTicker
-      // Formato: {"c":"spot@public.bookTicker.v3.api@BTCUSDT","d":{"A":"95123.85","B":"95123.84","a":"0.00042","b":"0.12341"},"s":"BTCUSDT","t":1234567890}
-      if (message.d && message.s) {
-        const d = message.d;
-        const symbol = message.s.replace('USDT', '');
+      // Formato OFICIAL MEXC (documentação):
+      // {
+      //   "channel": "spot@public.aggre.bookTicker.v3.api.pb@100ms@BTCUSDT",
+      //   "publicbookticker": {
+      //     "bidprice": "93387.28",
+      //     "bidquantity": "3.73485",
+      //     "askprice": "93387.29",
+      //     "askquantity": "7.669875"
+      //   },
+      //   "symbol": "BTCUSDT",
+      //   "sendtime": 1736412092433
+      // }
+      if (message.publicbookticker && message.symbol) {
+        const bt = message.publicbookticker;
+        const symbol = message.symbol.replace('USDT', '');
         const volume = this.volumeCache.get(symbol) || 0;
         
-        // A = ask price, B = bid price, a = ask qty, b = bid qty
-        const askPrice = parseFloat(d.A) || parseFloat(d.a) || 0;
-        const bidPrice = parseFloat(d.B) || parseFloat(d.b) || 0;
+        // Campos são LOWERCASE conforme documentação MEXC
+        const bidPrice = parseFloat(bt.bidprice) || 0;
+        const askPrice = parseFloat(bt.askprice) || 0;
         
-        if (bidPrice > 0) {
+        if (bidPrice > 0 && askPrice > 0) {
           const ticker: SpotTicker = {
             symbol,
             bidPrice,
-            askPrice: askPrice > 0 ? askPrice : bidPrice,
+            askPrice,
             volume24h: volume,
-            timestamp: message.t || Date.now()
+            timestamp: message.sendtime || Date.now()
           };
           
           this.emit('ticker', ticker);
           this.tickerCount++;
           
           if (!this.firstMessageLogged) {
-            console.log(`📦 Spot: Primeiro ticker JSON: ${symbol} bid=${bidPrice} ask=${askPrice} vol=${volume}`);
+            console.log(`📦 Spot: Primeiro ticker: ${symbol} bid=${bidPrice} ask=${askPrice} vol=${volume}`);
             this.firstMessageLogged = true;
           }
           
-          if (this.tickerCount % 1000 === 0) {
-            console.log(`📊 Spot: ${this.tickerCount} tickers processados`);
+          if (DEBUG_MODE && this.tickerCount <= 3) {
+            console.log(`🔍 Debug ticker: ${JSON.stringify(message).substring(0, 200)}`);
+          }
+        } else if (!this.firstMessageLogged) {
+          // Debug: mostrar mensagem que falhou
+          console.log(`⚠️ Spot: Ticker inválido - bid=${bidPrice} ask=${askPrice}`);
+          console.log(`   Raw: ${JSON.stringify(bt)}`);
+          this.firstMessageLogged = true;
+        }
+        return;
+      }
+
+      // Formato alternativo batch
+      if (message.publicBookTickerBatch && message.symbol) {
+        const items = message.publicBookTickerBatch.items || [];
+        if (items.length > 0) {
+          const item = items[0];
+          const symbol = message.symbol.replace('USDT', '');
+          const volume = this.volumeCache.get(symbol) || 0;
+          
+          const bidPrice = parseFloat(item.bidPrice || item.bidprice) || 0;
+          const askPrice = parseFloat(item.askPrice || item.askprice) || 0;
+          
+          if (bidPrice > 0 && askPrice > 0) {
+            const ticker: SpotTicker = {
+              symbol,
+              bidPrice,
+              askPrice,
+              volume24h: volume,
+              timestamp: parseInt(message.sendTime) || Date.now()
+            };
+            
+            this.emit('ticker', ticker);
+            this.tickerCount++;
           }
         }
         return;
       }
 
-      // Formato alternativo (antigo)
-      if (message.publicbookticker && message.symbol) {
-        const bt = message.publicbookticker;
-        const symbol = message.symbol.replace('USDT', '');
-        const volume = this.volumeCache.get(symbol) || 0;
-        
-        const ticker: SpotTicker = {
-          symbol,
-          bidPrice: parseFloat(bt.bidprice || bt.bidPrice) || 0,
-          askPrice: parseFloat(bt.askprice || bt.askPrice) || 0,
-          volume24h: volume,
-          timestamp: message.sendtime || message.sendTime || Date.now()
-        };
-        
-        if (ticker.bidPrice > 0) {
-          this.emit('ticker', ticker);
-          this.tickerCount++;
-        }
+      // Debug: mostrar formato de mensagem desconhecida
+      if (DEBUG_MODE && !this.firstMessageLogged && message.channel) {
+        console.log(`🔍 Formato desconhecido: ${JSON.stringify(message).substring(0, 300)}`);
       }
     } catch (err) {
-      // Ignorar erros de parse JSON
       if (DEBUG_MODE) {
         console.error('❌ JSON parse error:', (err as Error).message);
       }
@@ -307,7 +284,7 @@ export class SpotWebSocket extends EventEmitter {
     return {
       connections: this.connections.size,
       tickerCount: this.tickerCount,
-      format: USE_JSON_FORMAT ? 'JSON' : 'Protobuf'
+      format: 'JSON'
     };
   }
 }
