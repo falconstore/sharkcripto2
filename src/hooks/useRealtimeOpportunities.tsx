@@ -19,24 +19,33 @@ export function useRealtimeOpportunities() {
     }
 
     if (data) {
-      const mapped: Opportunity[] = data.map(row => ({
-        id: row.id,
-        pair_symbol: row.pair_symbol,
-        spot_bid_price: Number(row.spot_bid_price),
-        spot_volume_24h: Number(row.spot_volume_24h),
-        futures_ask_price: Number(row.futures_ask_price),
-        futures_volume_24h: Number(row.futures_volume_24h),
-        spread_gross_percent: Number(row.spread_gross_percent),
-        spread_net_percent: Number(row.spread_net_percent),
-        spread_net_percent_entrada: Number(row.spread_net_percent_entrada) || 0,
-        spread_net_percent_saida: Number(row.spread_net_percent_saida) || 0,
-        spot_taker_fee: Number(row.spot_taker_fee),
-        futures_taker_fee: Number(row.futures_taker_fee),
-        funding_rate: Number(row.funding_rate) || 0,
-        timestamp: row.timestamp || '',
-        is_active: row.is_active ?? true,
-        created_at: row.created_at || ''
-      }));
+      const mapped: Opportunity[] = data.map(row => {
+        // Cast para acessar colunas novas que ainda não estão no types.ts
+        const r = row as typeof row & { 
+          spread_net_percent_entrada?: number;
+          spread_net_percent_saida?: number;
+          funding_rate?: number;
+        };
+        
+        return {
+          id: r.id,
+          pair_symbol: r.pair_symbol,
+          spot_bid_price: Number(r.spot_bid_price),
+          spot_volume_24h: Number(r.spot_volume_24h),
+          futures_ask_price: Number(r.futures_ask_price),
+          futures_volume_24h: Number(r.futures_volume_24h),
+          spread_gross_percent: Number(r.spread_gross_percent),
+          spread_net_percent: Number(r.spread_net_percent),
+          spread_net_percent_entrada: Number(r.spread_net_percent_entrada) || 0,
+          spread_net_percent_saida: Number(r.spread_net_percent_saida) || 0,
+          spot_taker_fee: Number(r.spot_taker_fee),
+          futures_taker_fee: Number(r.futures_taker_fee),
+          funding_rate: Number(r.funding_rate) || 0,
+          timestamp: r.timestamp || '',
+          is_active: r.is_active ?? true,
+          created_at: r.created_at || ''
+        };
+      });
 
       setOpportunities(mapped);
     }

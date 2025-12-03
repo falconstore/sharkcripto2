@@ -17,6 +17,7 @@ export type Database = {
       arbitrage_opportunities: {
         Row: {
           created_at: string | null
+          funding_rate: number | null
           futures_ask_price: number
           futures_taker_fee: number | null
           futures_volume_24h: number
@@ -28,10 +29,13 @@ export type Database = {
           spot_volume_24h: number
           spread_gross_percent: number
           spread_net_percent: number
+          spread_net_percent_entrada: number | null
+          spread_net_percent_saida: number | null
           timestamp: string | null
         }
         Insert: {
           created_at?: string | null
+          funding_rate?: number | null
           futures_ask_price: number
           futures_taker_fee?: number | null
           futures_volume_24h: number
@@ -43,10 +47,13 @@ export type Database = {
           spot_volume_24h: number
           spread_gross_percent: number
           spread_net_percent: number
+          spread_net_percent_entrada?: number | null
+          spread_net_percent_saida?: number | null
           timestamp?: string | null
         }
         Update: {
           created_at?: string | null
+          funding_rate?: number | null
           futures_ask_price?: number
           futures_taker_fee?: number | null
           futures_volume_24h?: number
@@ -58,6 +65,8 @@ export type Database = {
           spot_volume_24h?: number
           spread_gross_percent?: number
           spread_net_percent?: number
+          spread_net_percent_entrada?: number | null
+          spread_net_percent_saida?: number | null
           timestamp?: string | null
         }
         Relationships: []
