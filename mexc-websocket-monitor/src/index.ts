@@ -3,34 +3,62 @@ import { SpotWebSocket } from './websocket/SpotWebSocket';
 import { FuturesWebSocket } from './websocket/FuturesWebSocket';
 import { SpreadCalculator } from './services/SpreadCalculator';
 import { SupabaseService } from './services/SupabaseService';
+import { VolumeService } from './services/VolumeService';
 
 const MIN_VOLUME_24H = parseFloat(process.env.MIN_VOLUME_24H || '100000');
 const SAVE_INTERVAL_MS = parseInt(process.env.SAVE_INTERVAL_MS || '1000');
+const DEBUG_MODE = process.env.DEBUG_MODE === 'true';
+
+// Pares problemáticos a ignorar (ações tokenizadas, stablecoins, etc.)
+const BLOCKED_SUFFIXES = ['STOCK', 'STOCKUSDT', 'CHF', 'TRY', 'EUR', 'GBP', 'JPY'];
+const BLOCKED_SYMBOLS = new Set([
+  'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD', // Stablecoins
+  'WBTC', 'WETH', // Wrapped tokens
+]);
 
 class MexcArbitrageMonitor {
   private spotWs: SpotWebSocket;
   private futuresWs: FuturesWebSocket;
   private calculator: SpreadCalculator;
   private supabase: SupabaseService;
+  private volumeService: VolumeService;
   private symbols: string[] = [];
+  private spotSymbols: Set<string> = new Set();
 
   constructor() {
     this.spotWs = new SpotWebSocket();
     this.futuresWs = new FuturesWebSocket();
     this.calculator = new SpreadCalculator();
     this.supabase = new SupabaseService();
+    this.volumeService = new VolumeService();
   }
 
   async start() {
     console.log('🚀 Iniciando MEXC Arbitrage Monitor...\n');
+    console.log(`📋 Configuração:`);
+    console.log(`   - Volume mínimo: ${MIN_VOLUME_24H.toLocaleString()} USDT`);
+    console.log(`   - Intervalo de save: ${SAVE_INTERVAL_MS}ms`);
+    console.log(`   - Debug mode: ${DEBUG_MODE}\n`);
 
-    // Buscar lista de pares
-    await this.fetchSymbols();
+    // Buscar volumes primeiro (para filtrar por volume)
+    await this.volumeService.fetchVolumes();
+    
+    // Buscar lista de pares spot disponíveis
+    await this.fetchSpotSymbols();
+
+    // Buscar lista de pares futuros
+    await this.fetchFuturesSymbols();
+
+    // Filtrar apenas símbolos que existem em ambos os mercados
+    this.filterCommonSymbols();
 
     // Carregar blacklist
     const blacklist = await this.supabase.getBlacklist();
     this.calculator.setBlacklist(blacklist);
     console.log(`🚫 Blacklist: ${blacklist.length} pares\n`);
+
+    // Passar cache de volume para o WebSocket
+    this.spotWs.setVolumeCache(this.volumeService['volumeCache']);
 
     // Configurar handlers
     this.setupHandlers();
@@ -41,8 +69,9 @@ class MexcArbitrageMonitor {
       this.futuresWs.connect(this.symbols)
     ]);
 
-    // Iniciar auto-save
+    // Iniciar auto-save e auto-update de volumes
     this.supabase.startAutoSave(SAVE_INTERVAL_MS);
+    this.volumeService.startAutoUpdate();
 
     // Iniciar processamento periódico
     this.startProcessing();
@@ -50,31 +79,99 @@ class MexcArbitrageMonitor {
     console.log('\n✅ Monitor iniciado! Pressione Ctrl+C para parar.\n');
   }
 
-  private async fetchSymbols() {
-    console.log('📋 Buscando lista de pares...');
+  private async fetchSpotSymbols() {
+    console.log('📋 Buscando pares Spot disponíveis...');
+    
+    try {
+      const response = await fetch('https://api.mexc.com/api/v3/exchangeInfo');
+      const data: any = await response.json();
+      
+      if (data.symbols) {
+        for (const s of data.symbols) {
+          if (s.quoteAsset === 'USDT' && s.status === 'ENABLED') {
+            const symbol = s.baseAsset;
+            
+            // Filtrar símbolos problemáticos
+            if (this.isBlockedSymbol(symbol)) continue;
+            
+            this.spotSymbols.add(symbol);
+          }
+        }
+        console.log(`✅ ${this.spotSymbols.size} pares Spot disponíveis`);
+      }
+    } catch (err) {
+      console.error('❌ Erro ao buscar pares Spot:', (err as Error).message);
+    }
+  }
+
+  private async fetchFuturesSymbols() {
+    console.log('📋 Buscando pares Futures disponíveis...');
 
     try {
-      // Buscar pares de futuros (são menos, então usamos como base)
       const response = await fetch('https://contract.mexc.com/api/v1/contract/detail');
       const data: any = await response.json();
 
       if (data.success && data.data) {
-        this.symbols = data.data
+        const futuresSymbols = data.data
           .filter((c: any) => c.quoteCoin === 'USDT' && c.state === 0)
-          .map((c: any) => c.baseCoin);
+          .map((c: any) => c.baseCoin)
+          .filter((s: string) => !this.isBlockedSymbol(s));
 
-        console.log(`✅ ${this.symbols.length} pares encontrados\n`);
+        console.log(`✅ ${futuresSymbols.length} pares Futures disponíveis`);
+        
+        // Armazenar temporariamente
+        this.symbols = futuresSymbols;
       }
     } catch (err) {
-      console.error('❌ Erro ao buscar pares:', err);
-      // Fallback: alguns pares populares
+      console.error('❌ Erro ao buscar pares Futures:', (err as Error).message);
+      // Fallback
       this.symbols = ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'LINK', 'DOT', 'MATIC'];
+    }
+  }
+
+  private isBlockedSymbol(symbol: string): boolean {
+    // Verificar se é um símbolo bloqueado
+    if (BLOCKED_SYMBOLS.has(symbol)) return true;
+    
+    // Verificar sufixos bloqueados
+    for (const suffix of BLOCKED_SUFFIXES) {
+      if (symbol.includes(suffix)) return true;
+    }
+    
+    return false;
+  }
+
+  private filterCommonSymbols() {
+    const before = this.symbols.length;
+    
+    // Filtrar apenas símbolos que existem em ambos os mercados
+    this.symbols = this.symbols.filter(symbol => {
+      const inSpot = this.spotSymbols.has(symbol);
+      const volume = this.volumeService.getVolume(symbol);
+      
+      // Debug log para símbolos não encontrados no spot
+      if (!inSpot && DEBUG_MODE) {
+        console.log(`⚠️ ${symbol} não encontrado no mercado Spot`);
+      }
+      
+      return inSpot;
+    });
+    
+    console.log(`\n📊 Símbolos filtrados: ${before} -> ${this.symbols.length} (existem em ambos os mercados)\n`);
+    
+    // Log de alguns símbolos
+    if (DEBUG_MODE && this.symbols.length > 0) {
+      console.log(`📋 Primeiros 10 símbolos: ${this.symbols.slice(0, 10).join(', ')}`);
     }
   }
 
   private setupHandlers() {
     // Handler para tickers Spot
     this.spotWs.on('ticker', (ticker) => {
+      // Adicionar volume do cache se não tiver
+      if (ticker.volume24h === 0) {
+        ticker.volume24h = this.volumeService.getVolume(ticker.symbol);
+      }
       this.calculator.updateSpotPrice(ticker);
     });
 
@@ -98,13 +195,16 @@ class MexcArbitrageMonitor {
     setInterval(() => {
       const { opportunities, crossings } = this.calculator.getAllOpportunities();
 
-      // Filtrar por volume mínimo
+      // Filtrar por volume mínimo (aceitar se qualquer um tiver volume)
       const filtered = opportunities.filter(o => 
         o.spot_volume_24h >= MIN_VOLUME_24H || o.futures_volume_24h >= MIN_VOLUME_24H
       );
 
+      // Se não temos oportunidades com volume, aceitar todas (pode ser problema de volume)
+      const toSave = filtered.length > 0 ? filtered : opportunities.slice(0, 50);
+
       // Enfileirar para salvar
-      for (const opp of filtered) {
+      for (const opp of toSave) {
         this.supabase.queueOpportunity(opp);
       }
 
@@ -115,12 +215,16 @@ class MexcArbitrageMonitor {
 
       // Log de status
       const stats = this.calculator.getStats();
-      const positive = filtered.filter(o => o.spread_net_percent > 0).length;
+      const spotStats = this.spotWs.getStats();
+      const volumeStats = this.volumeService.getStats();
+      const positive = opportunities.filter(o => o.spread_net_percent > 0).length;
       
       process.stdout.write(
         `\r📊 Spot: ${stats.spotPairs} | Futures: ${stats.futuresPairs} | ` +
-        `Opps: ${filtered.length} (${positive} positivas) | ` +
-        `Crossings: ${crossings.length}    `
+        `Opps: ${opportunities.length} (${positive} +) | ` +
+        `Save: ${toSave.length} | ` +
+        `Cross: ${crossings.length} | ` +
+        `Vol: ${volumeStats.cachedSymbols}    `
       );
     }, 1000);
   }
@@ -130,6 +234,7 @@ class MexcArbitrageMonitor {
     this.spotWs.disconnect();
     this.futuresWs.disconnect();
     this.supabase.stopAutoSave();
+    this.volumeService.stopAutoUpdate();
     console.log('✅ Monitor parado');
     process.exit(0);
   }
