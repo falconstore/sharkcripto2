@@ -1,21 +1,40 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Opportunity } from '../types';
 
 export class SupabaseService {
-  private client: SupabaseClient;
+  private functionsUrl: string;
+  private apiKey: string;
   private pendingOpportunities: Map<string, Opportunity> = new Map();
   private saveInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const functionsUrl = process.env.SUPABASE_FUNCTIONS_URL;
+    const apiKey = process.env.MONITOR_API_KEY;
 
-    if (!url || !key) {
-      throw new Error('SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórios');
+    if (!functionsUrl || !apiKey) {
+      throw new Error('SUPABASE_FUNCTIONS_URL e MONITOR_API_KEY são obrigatórios');
     }
 
-    this.client = createClient(url, key);
-    console.log('✅ Supabase conectado');
+    this.functionsUrl = functionsUrl;
+    this.apiKey = apiKey;
+    console.log('✅ Serviço configurado para usar Edge Function');
+  }
+
+  private async callEdgeFunction(action: string, data: any): Promise<any> {
+    const response = await fetch(`${this.functionsUrl}/websocket-receiver`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-monitor-api-key': this.apiKey
+      },
+      body: JSON.stringify({ action, data })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
   }
 
   startAutoSave(intervalMs: number = 1000) {
@@ -41,42 +60,21 @@ export class SupabaseService {
     this.pendingOpportunities.clear();
 
     try {
-      // Primeiro, marcar todas as oportunidades antigas como inativas
-      await this.client
-        .from('arbitrage_opportunities')
-        .update({ is_active: false })
-        .eq('is_active', true);
-
-      // Inserir novas oportunidades
-      const { error } = await this.client
-        .from('arbitrage_opportunities')
-        .insert(opportunities);
-
-      if (error) {
-        console.error('❌ Erro ao salvar oportunidades:', error.message);
-      } else {
-        console.log(`💾 ${opportunities.length} oportunidades salvas`);
-      }
+      const result = await this.callEdgeFunction('save_opportunities', opportunities);
+      console.log(`💾 ${result.count || opportunities.length} oportunidades salvas`);
     } catch (err) {
-      console.error('❌ Erro ao salvar:', err);
+      console.error('❌ Erro ao salvar oportunidades:', err);
     }
   }
 
   async saveCrossing(pairSymbol: string, spreadNetSaida: number) {
     try {
-      const { error } = await this.client
-        .from('pair_crossings')
-        .insert({
-          pair_symbol: pairSymbol,
-          spread_net_percent_saida: spreadNetSaida,
-          timestamp: new Date().toISOString()
-        });
-
-      if (error) {
-        console.error('❌ Erro ao salvar cruzamento:', error.message);
-      } else {
-        console.log(`🔄 Cruzamento salvo: ${pairSymbol}`);
-      }
+      await this.callEdgeFunction('save_crossing', {
+        pair_symbol: pairSymbol,
+        spread_net_percent_saida: spreadNetSaida,
+        timestamp: new Date().toISOString()
+      });
+      console.log(`🔄 Cruzamento salvo: ${pairSymbol}`);
     } catch (err) {
       console.error('❌ Erro ao salvar cruzamento:', err);
     }
@@ -84,21 +82,10 @@ export class SupabaseService {
 
   async getBlacklist(): Promise<string[]> {
     try {
-      const { data } = await this.client
-        .from('pair_crossings')
-        .select('pair_symbol')
-        .gte('timestamp', new Date(Date.now() - 60 * 60 * 1000).toISOString());
-
-      // Pares com mais de 3 cruzamentos na última hora
-      const counts = new Map<string, number>();
-      data?.forEach(row => {
-        counts.set(row.pair_symbol, (counts.get(row.pair_symbol) || 0) + 1);
-      });
-
-      return Array.from(counts.entries())
-        .filter(([_, count]) => count > 3)
-        .map(([symbol]) => symbol);
-    } catch {
+      const result = await this.callEdgeFunction('get_blacklist', {});
+      return result.blacklist || [];
+    } catch (err) {
+      console.error('❌ Erro ao buscar blacklist:', err);
       return [];
     }
   }
