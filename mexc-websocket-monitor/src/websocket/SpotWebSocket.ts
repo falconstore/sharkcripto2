@@ -2,7 +2,7 @@ import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import { SpotTicker } from '../types';
 
-const SPOT_WS_URL = 'wss://wbs.mexc.com/ws';
+const SPOT_WS_URL = 'wss://wbs-api.mexc.com/ws';
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 30;
 const HEARTBEAT_INTERVAL = 30000;
 const RECONNECT_INTERVAL = 5000;
@@ -85,8 +85,8 @@ export class SpotWebSocket extends EventEmitter {
     
     if (!ws || !symbols) return;
 
-    // Inscrever no ticker de cada símbolo
-    const params = symbols.map(s => `spot@public.bookTicker.v3.api@${s}`);
+    // Novo formato: spot@public.aggre.bookTicker.v3.api.pb@100ms@SYMBOL
+    const params = symbols.map(s => `spot@public.aggre.bookTicker.v3.api.pb@100ms@${s.toUpperCase()}`);
     
     ws.send(JSON.stringify({
       method: 'SUBSCRIPTION',
@@ -103,17 +103,18 @@ export class SpotWebSocket extends EventEmitter {
       // Ignorar PONG
       if (message.msg === 'PONG') return;
       
-      // Ignorar mensagens de confirmação
-      if (message.id !== undefined) return;
+      // Ignorar mensagens de confirmação de subscription
+      if (message.id !== undefined && message.code !== undefined) return;
 
-      // Processar ticker
-      if (message.d && message.s) {
+      // Novo formato: publicbookticker com bidprice, askprice, etc.
+      if (message.publicbookticker && message.symbol) {
+        const bt = message.publicbookticker;
         const ticker: SpotTicker = {
-          symbol: message.s,
-          bidPrice: parseFloat(message.d.b) || 0,
-          askPrice: parseFloat(message.d.a) || 0,
-          volume24h: parseFloat(message.d.v) || 0,
-          timestamp: Date.now()
+          symbol: message.symbol,
+          bidPrice: parseFloat(bt.bidprice) || 0,
+          askPrice: parseFloat(bt.askprice) || 0,
+          volume24h: 0,
+          timestamp: message.sendtime || Date.now()
         };
         
         this.emit('ticker', ticker);
