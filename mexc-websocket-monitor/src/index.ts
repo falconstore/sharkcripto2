@@ -9,11 +9,17 @@ const MIN_VOLUME_24H = parseFloat(process.env.MIN_VOLUME_24H || '100000');
 const SAVE_INTERVAL_MS = parseInt(process.env.SAVE_INTERVAL_MS || '1000');
 const DEBUG_MODE = process.env.DEBUG_MODE === 'true';
 
-// Pares problemáticos a ignorar (ações tokenizadas, stablecoins, etc.)
-const BLOCKED_SUFFIXES = ['STOCK', 'STOCKUSDT', 'CHF', 'TRY', 'EUR', 'GBP', 'JPY'];
+// Pares problemáticos a ignorar (ações tokenizadas, stablecoins, alavancados, etc.)
+const BLOCKED_SUFFIXES = [
+  'STOCK', 'STOCKUSDT',           // Ações tokenizadas
+  'CHF', 'TRY', 'EUR', 'GBP', 'JPY', // Moedas fiat
+  '3L', '3S', '5L', '5S',         // Tokens alavancados
+  'UP', 'DOWN', 'BULL', 'BEAR'    // Mais tokens alavancados
+];
 const BLOCKED_SYMBOLS = new Set([
-  'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD', // Stablecoins
-  'WBTC', 'WETH', // Wrapped tokens
+  'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD', 'USDD', // Stablecoins
+  'WBTC', 'WETH', 'STETH',        // Wrapped tokens
+  'KEFUXIAOHE', 'HAJIMI',         // Símbolos específicos bloqueados pela MEXC
 ]);
 
 class MexcArbitrageMonitor {
@@ -88,7 +94,13 @@ class MexcArbitrageMonitor {
       
       if (data.symbols) {
         for (const s of data.symbols) {
-          if (s.quoteAsset === 'USDT' && s.status === 'ENABLED') {
+          // Critérios RIGOROSOS conforme documentação MEXC
+          const hasSpotPermission = s.permissions && s.permissions.includes('SPOT');
+          const isSpotAllowed = s.isSpotTradingAllowed === true;
+          const isEnabled = s.status === 'ENABLED';
+          const isUSDT = s.quoteAsset === 'USDT';
+          
+          if (isEnabled && isUSDT && hasSpotPermission && isSpotAllowed) {
             const symbol = s.baseAsset;
             
             // Filtrar símbolos problemáticos
@@ -97,7 +109,7 @@ class MexcArbitrageMonitor {
             this.spotSymbols.add(symbol);
           }
         }
-        console.log(`✅ ${this.spotSymbols.size} pares Spot disponíveis`);
+        console.log(`✅ ${this.spotSymbols.size} pares Spot permitidos para WebSocket`);
       }
     } catch (err) {
       console.error('❌ Erro ao buscar pares Spot:', (err as Error).message);
@@ -143,25 +155,30 @@ class MexcArbitrageMonitor {
 
   private filterCommonSymbols() {
     const before = this.symbols.length;
+    const notInSpot: string[] = [];
     
     // Filtrar apenas símbolos que existem em ambos os mercados
     this.symbols = this.symbols.filter(symbol => {
       const inSpot = this.spotSymbols.has(symbol);
-      const volume = this.volumeService.getVolume(symbol);
       
-      // Debug log para símbolos não encontrados no spot
-      if (!inSpot && DEBUG_MODE) {
-        console.log(`⚠️ ${symbol} não encontrado no mercado Spot`);
+      if (!inSpot) {
+        notInSpot.push(symbol);
       }
       
       return inSpot;
     });
     
-    console.log(`\n📊 Símbolos filtrados: ${before} -> ${this.symbols.length} (existem em ambos os mercados)\n`);
+    console.log(`\n📊 Símbolos filtrados: ${before} -> ${this.symbols.length} (existem em ambos os mercados)`);
     
-    // Log de alguns símbolos
-    if (DEBUG_MODE && this.symbols.length > 0) {
-      console.log(`📋 Primeiros 10 símbolos: ${this.symbols.slice(0, 10).join(', ')}`);
+    // Log de símbolos rejeitados (para debug)
+    if (DEBUG_MODE && notInSpot.length > 0) {
+      console.log(`⚠️ ${notInSpot.length} símbolos de Futures não encontrados/permitidos no Spot:`);
+      console.log(`   ${notInSpot.slice(0, 20).join(', ')}${notInSpot.length > 20 ? '...' : ''}`);
+    }
+    
+    // Log de alguns símbolos válidos
+    if (this.symbols.length > 0) {
+      console.log(`✅ Primeiros 10 símbolos válidos: ${this.symbols.slice(0, 10).join(', ')}\n`);
     }
   }
 

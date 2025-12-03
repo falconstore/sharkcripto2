@@ -1,8 +1,9 @@
 import { SpotTicker, FuturesTicker, Opportunity, PriceCache } from '../types';
 
-// Taxas da MEXC (em %)
-const SPOT_TAKER_FEE = 0.10;
-const FUTURES_TAKER_FEE = 0.02;
+// Taxas da MEXC (em %) - configuráveis via .env
+// Se tiver token MX na carteira, pode usar 0.08 para Spot
+const SPOT_TAKER_FEE = parseFloat(process.env.SPOT_TAKER_FEE || '0.10');
+const FUTURES_TAKER_FEE = parseFloat(process.env.FUTURES_TAKER_FEE || '0.02');
 
 export class SpreadCalculator {
   private priceCache: PriceCache = {
