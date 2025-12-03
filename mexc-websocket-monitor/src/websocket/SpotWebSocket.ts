@@ -19,6 +19,8 @@ export class SpotWebSocket extends EventEmitter {
   private heartbeatIntervals: Map<number, NodeJS.Timeout> = new Map();
   private symbolsByConnection: Map<number, string[]> = new Map();
   private reconnecting: Set<number> = new Set();
+  private protobufWarningShown = false;
+  private firstMessageLogged = false;
 
   on<K extends keyof SpotWebSocketEvents>(event: K, listener: SpotWebSocketEvents[K]): this {
     return super.on(event, listener);
@@ -85,26 +87,68 @@ export class SpotWebSocket extends EventEmitter {
     
     if (!ws || !symbols) return;
 
-    // Novo formato: spot@public.aggre.bookTicker.v3.api.pb@100ms@SYMBOL
+    // Formato da documentação: spot@public.aggre.bookTicker.v3.api.pb@100ms@SYMBOL
     const params = symbols.map(s => `spot@public.aggre.bookTicker.v3.api.pb@100ms@${s.toUpperCase()}`);
     
-    ws.send(JSON.stringify({
+    const subscribeMsg = {
       method: 'SUBSCRIPTION',
       params
-    }));
-
-    console.log(`📩 Spot[${connectionId}]: Inscrito em ${symbols.length} pares`);
+    };
+    
+    console.log(`📩 Spot[${connectionId}]: Enviando subscription para ${symbols.length} pares...`);
+    console.log(`📩 Spot[${connectionId}]: Exemplo de channel: ${params[0]}`);
+    
+    ws.send(JSON.stringify(subscribeMsg));
   }
 
   private handleMessage(data: WebSocket.RawData, connectionId: number) {
     try {
-      const message = JSON.parse(data.toString());
+      // Verificar se é dado binário (Protobuf)
+      if (Buffer.isBuffer(data) || data instanceof ArrayBuffer) {
+        // Tentar converter para string mesmo assim
+        const str = data.toString();
+        if (str.startsWith('{')) {
+          // É JSON, processar normalmente
+          this.processJsonMessage(str, connectionId);
+        } else {
+          // É Protobuf binário - log apenas uma vez por conexão
+          if (!this.protobufWarningShown) {
+            console.log(`⚠️ Spot: Dados em formato Protobuf detectados. Considerando usar endpoint alternativo.`);
+            this.protobufWarningShown = true;
+          }
+        }
+        return;
+      }
+      
+      this.processJsonMessage(data.toString(), connectionId);
+    } catch (err) {
+      // Log de erro apenas para debug
+      console.error(`❌ Spot[${connectionId}]: Erro ao processar mensagem:`, (err as Error).message);
+    }
+  }
+
+  private processJsonMessage(str: string, connectionId: number) {
+    try {
+      const message = JSON.parse(str);
       
       // Ignorar PONG
       if (message.msg === 'PONG') return;
       
-      // Ignorar mensagens de confirmação de subscription
-      if (message.id !== undefined && message.code !== undefined) return;
+      // Log de confirmação de subscription
+      if (message.id !== undefined && message.code !== undefined) {
+        if (message.code === 0) {
+          console.log(`✅ Spot[${connectionId}]: Subscription confirmada - ${message.msg}`);
+        } else {
+          console.log(`❌ Spot[${connectionId}]: Subscription falhou (code: ${message.code}) - ${message.msg}`);
+        }
+        return;
+      }
+
+      // Debug: mostrar estrutura da primeira mensagem de dados
+      if (!this.firstMessageLogged && message.channel) {
+        console.log(`📦 Spot[${connectionId}]: Primeira mensagem recebida:`, JSON.stringify(message, null, 2).substring(0, 500));
+        this.firstMessageLogged = true;
+      }
 
       // Novo formato: publicbookticker com bidprice, askprice, etc.
       if (message.publicbookticker && message.symbol) {
@@ -119,8 +163,24 @@ export class SpotWebSocket extends EventEmitter {
         
         this.emit('ticker', ticker);
       }
+      // Formato alternativo: publicBookTickerBatch (batch version)
+      else if (message.publicBookTickerBatch && message.symbol) {
+        const items = message.publicBookTickerBatch.items;
+        if (items && items.length > 0) {
+          const bt = items[0];
+          const ticker: SpotTicker = {
+            symbol: message.symbol,
+            bidPrice: parseFloat(bt.bidPrice || bt.bidprice) || 0,
+            askPrice: parseFloat(bt.askPrice || bt.askprice) || 0,
+            volume24h: 0,
+            timestamp: parseInt(message.sendTime) || Date.now()
+          };
+          
+          this.emit('ticker', ticker);
+        }
+      }
     } catch (err) {
-      // Pode ser mensagem binária (Protobuf) - ignorar por enquanto
+      // Ignorar erros de parse JSON
     }
   }
 
