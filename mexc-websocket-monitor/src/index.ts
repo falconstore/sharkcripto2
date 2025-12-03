@@ -56,7 +56,7 @@ class MexcArbitrageMonitor {
     try {
       // Buscar pares de futuros (são menos, então usamos como base)
       const response = await fetch('https://contract.mexc.com/api/v1/contract/detail');
-      const data = await response.json();
+      const data: any = await response.json();
 
       if (data.success && data.data) {
         this.symbols = data.data

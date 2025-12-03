@@ -30,7 +30,7 @@ export class SupabaseService {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error: any = await response.json();
       throw new Error(error.error || `HTTP ${response.status}`);
     }
 
