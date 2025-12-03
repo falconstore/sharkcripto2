@@ -88,7 +88,7 @@ export class SpotWebSocket extends EventEmitter {
     if (!ws || !symbols) return;
 
     // Formato da documentação: spot@public.aggre.bookTicker.v3.api.pb@100ms@SYMBOL
-    const params = symbols.map(s => `spot@public.aggre.bookTicker.v3.api.pb@100ms@${s.toUpperCase()}`);
+    const params = symbols.map(s => `spot@public.aggre.bookTicker.v3.api.pb@100ms@${s.toUpperCase()}USDT`);
     
     const subscribeMsg = {
       method: 'SUBSCRIPTION',

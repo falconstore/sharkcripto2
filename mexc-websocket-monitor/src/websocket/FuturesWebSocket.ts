@@ -2,7 +2,7 @@ import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import { FuturesTicker } from '../types';
 
-const FUTURES_WS_URL = 'wss://contract.mexc.com/ws';
+const FUTURES_WS_URL = 'wss://contract.mexc.com/edge';
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 200;
 const HEARTBEAT_INTERVAL = 30000;
 const RECONNECT_INTERVAL = 5000;
