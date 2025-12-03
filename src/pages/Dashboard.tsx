@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useCrossingNotifications } from '@/hooks/useCrossingNotifications';
 import { useSpreadAlerts } from '@/hooks/useSpreadAlerts';
-import { useRealtimeOpportunities } from '@/hooks/useRealtimeOpportunities';
+import { useOpportunities } from '@/hooks/useOpportunities';
 import DashboardHeader from '@/components/DashboardHeader';
 import DashboardStats from '@/components/DashboardStats';
 import MonitoringStatus from '@/components/MonitoringStatus';
@@ -14,7 +14,7 @@ import ImprovedArbitrageCalculator from '@/components/ImprovedArbitrageCalculato
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const { opportunities } = useRealtimeOpportunities();
+  const { opportunities } = useOpportunities();
   const { checkAlerts } = useSpreadAlerts();
   
   // Ativar notificações em tempo real
