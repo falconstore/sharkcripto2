@@ -2,3 +2,6 @@ project_id = "jschuymzkukzthesevoy"
 
 [functions.cleanup-opportunities]
 verify_jwt = false
+
+[functions.websocket-receiver]
+verify_jwt = false
