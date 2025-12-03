@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import { SpotTicker } from '../types';
+import { initProtobuf, decodeSpotMessage, isProtobufReady } from '../services/ProtobufDecoder';
 
 const SPOT_WS_URL = 'wss://wbs-api.mexc.com/ws';
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 30;
@@ -19,8 +20,9 @@ export class SpotWebSocket extends EventEmitter {
   private heartbeatIntervals: Map<number, NodeJS.Timeout> = new Map();
   private symbolsByConnection: Map<number, string[]> = new Map();
   private reconnecting: Set<number> = new Set();
-  private protobufWarningShown = false;
+  private protobufInitialized = false;
   private firstMessageLogged = false;
+  private tickerCount = 0;
 
   on<K extends keyof SpotWebSocketEvents>(event: K, listener: SpotWebSocketEvents[K]): this {
     return super.on(event, listener);
@@ -31,6 +33,16 @@ export class SpotWebSocket extends EventEmitter {
   }
 
   async connect(symbols: string[]): Promise<void> {
+    // Inicializar Protobuf antes de conectar
+    if (!this.protobufInitialized) {
+      try {
+        await initProtobuf();
+        this.protobufInitialized = true;
+      } catch (err) {
+        console.error('❌ Spot: Falha ao inicializar Protobuf, continuando sem decodificação');
+      }
+    }
+
     // Dividir símbolos em chunks de 30
     const chunks: string[][] = [];
     for (let i = 0; i < symbols.length; i += MAX_SUBSCRIPTIONS_PER_CONNECTION) {
@@ -104,26 +116,56 @@ export class SpotWebSocket extends EventEmitter {
   private handleMessage(data: WebSocket.RawData, connectionId: number) {
     try {
       // Verificar se é dado binário (Protobuf)
-      if (Buffer.isBuffer(data) || data instanceof ArrayBuffer) {
-        // Tentar converter para string mesmo assim
+      if (Buffer.isBuffer(data)) {
+        // Tentar como string JSON primeiro (mensagens de controle)
         const str = data.toString();
         if (str.startsWith('{')) {
-          // É JSON, processar normalmente
           this.processJsonMessage(str, connectionId);
-        } else {
-          // É Protobuf binário - log apenas uma vez por conexão
-          if (!this.protobufWarningShown) {
-            console.log(`⚠️ Spot: Dados em formato Protobuf detectados. Considerando usar endpoint alternativo.`);
-            this.protobufWarningShown = true;
+          return;
+        }
+
+        // Decodificar Protobuf
+        if (isProtobufReady()) {
+          const decoded = decodeSpotMessage(data);
+          if (decoded && decoded.bidPrice > 0) {
+            // Remover sufixo USDT do symbol para consistência
+            const symbol = decoded.symbol.replace('USDT', '');
+            
+            const ticker: SpotTicker = {
+              symbol,
+              bidPrice: decoded.bidPrice,
+              askPrice: decoded.askPrice,
+              volume24h: 0,
+              timestamp: decoded.sendTime
+            };
+            
+            this.emit('ticker', ticker);
+            this.tickerCount++;
+            
+            // Log do primeiro ticker decodificado
+            if (!this.firstMessageLogged) {
+              console.log(`📦 Spot: Primeiro ticker Protobuf decodificado: ${symbol} bid=${decoded.bidPrice} ask=${decoded.askPrice}`);
+              this.firstMessageLogged = true;
+            }
+            
+            // Log periódico
+            if (this.tickerCount % 1000 === 0) {
+              console.log(`📊 Spot: ${this.tickerCount} tickers processados`);
+            }
           }
         }
         return;
       }
       
-      this.processJsonMessage(data.toString(), connectionId);
+      // Mensagem de texto
+      if (typeof data === 'string' || data instanceof Buffer) {
+        this.processJsonMessage(data.toString(), connectionId);
+      }
     } catch (err) {
       // Log de erro apenas para debug
-      console.error(`❌ Spot[${connectionId}]: Erro ao processar mensagem:`, (err as Error).message);
+      if (this.tickerCount < 10) {
+        console.error(`❌ Spot[${connectionId}]: Erro ao processar mensagem:`, (err as Error).message);
+      }
     }
   }
 
@@ -144,17 +186,12 @@ export class SpotWebSocket extends EventEmitter {
         return;
       }
 
-      // Debug: mostrar estrutura da primeira mensagem de dados
-      if (!this.firstMessageLogged && message.channel) {
-        console.log(`📦 Spot[${connectionId}]: Primeira mensagem recebida:`, JSON.stringify(message, null, 2).substring(0, 500));
-        this.firstMessageLogged = true;
-      }
-
-      // Novo formato: publicbookticker com bidprice, askprice, etc.
+      // Formato JSON alternativo (fallback)
       if (message.publicbookticker && message.symbol) {
         const bt = message.publicbookticker;
+        const symbol = message.symbol.replace('USDT', '');
         const ticker: SpotTicker = {
-          symbol: message.symbol,
+          symbol,
           bidPrice: parseFloat(bt.bidprice) || 0,
           askPrice: parseFloat(bt.askprice) || 0,
           volume24h: 0,
@@ -162,22 +199,6 @@ export class SpotWebSocket extends EventEmitter {
         };
         
         this.emit('ticker', ticker);
-      }
-      // Formato alternativo: publicBookTickerBatch (batch version)
-      else if (message.publicBookTickerBatch && message.symbol) {
-        const items = message.publicBookTickerBatch.items;
-        if (items && items.length > 0) {
-          const bt = items[0];
-          const ticker: SpotTicker = {
-            symbol: message.symbol,
-            bidPrice: parseFloat(bt.bidPrice || bt.bidprice) || 0,
-            askPrice: parseFloat(bt.askPrice || bt.askprice) || 0,
-            volume24h: 0,
-            timestamp: parseInt(message.sendTime) || Date.now()
-          };
-          
-          this.emit('ticker', ticker);
-        }
       }
     } catch (err) {
       // Ignorar erros de parse JSON

@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package mexc.spot;
+
+// Wrapper principal para mensagens do WebSocket Spot
+message PushDataV3ApiWrapper {
+  string channel = 1;
+  string symbol = 2;
+  int64 sendTime = 3;
+  PublicBookTicker publicBookTicker = 10;
+}
+
+// Dados do BookTicker (bid/ask)
+message PublicBookTicker {
+  string bidPrice = 1;
+  string bidQuantity = 2;
+  string askPrice = 3;
+  string askQuantity = 4;
+}
