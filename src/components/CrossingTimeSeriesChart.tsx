@@ -18,6 +18,17 @@ const COLORS = [
   'hsl(346, 77%, 50%)',
 ];
 
+const getPeriodLabel = (period: Period): string => {
+  const labels: Record<Period, string> = {
+    '15min': 'Últimos 15 minutos',
+    '30min': 'Últimos 30 minutos',
+    '1h': 'Última hora',
+    '3h': 'Últimas 3 horas',
+    '24h': 'Últimas 24 horas',
+  };
+  return labels[period];
+};
+
 const CrossingTimeSeriesChart = ({ data, loading, period }: CrossingTimeSeriesChartProps) => {
   if (loading) {
     return (
@@ -63,7 +74,7 @@ const CrossingTimeSeriesChart = ({ data, loading, period }: CrossingTimeSeriesCh
           Cruzamentos ao Longo do Tempo
         </CardTitle>
         <CardDescription>
-          {period === 'today' ? 'Últimas 24 horas' : period === 'week' ? 'Últimos 7 dias' : 'Últimos 30 dias'}
+          {getPeriodLabel(period)}
         </CardDescription>
       </CardHeader>
       <CardContent>
