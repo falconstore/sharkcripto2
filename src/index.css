@@ -90,8 +90,11 @@
     --accent: 24 100% 50%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62% 30%;
+    --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 100%;
+    
+    /* Negative values - more vibrant red */
+    --negative: 0 90% 60%;
 
     --border: 38 30% 18%;
     --input: 38 20% 18%;
@@ -196,6 +199,23 @@
   .hover-gold:hover {
     color: hsl(var(--gold));
     box-shadow: 0 0 20px hsl(38 92% 50% / 0.3);
+  }
+
+  /* Negative value styling - high visibility */
+  .text-negative {
+    color: hsl(0 90% 60%);
+  }
+  
+  .dark .text-negative {
+    color: hsl(0 100% 65%);
+  }
+  
+  .bg-negative-subtle {
+    background-color: hsl(0 70% 50% / 0.15);
+  }
+  
+  .dark .bg-negative-subtle {
+    background-color: hsl(0 100% 60% / 0.2);
   }
 }
 

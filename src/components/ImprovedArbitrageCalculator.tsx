@@ -324,14 +324,14 @@ const ImprovedArbitrageCalculator = () => {
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-xs">Entrada:</span>
-                              <Badge variant="outline" className={spreadEntrada > 0 ? 'bg-profit/20 text-profit' : 'bg-destructive/20 text-destructive'}>
+                              <Badge variant="outline" className={spreadEntrada > 0 ? 'bg-profit/20 text-profit border-profit/30' : 'bg-negative-subtle text-negative border-red-500/30'}>
                                 {spreadEntrada > 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
                                 {spreadEntrada.toFixed(4)}%
                               </Badge>
                             </div>
                             <div className="flex items-center justify-between">
                               <span className="text-xs">Saída:</span>
-                              <Badge variant="outline" className={spreadSaida > 0 ? 'bg-profit/20 text-profit' : 'bg-destructive/20 text-destructive'}>
+                              <Badge variant="outline" className={spreadSaida > 0 ? 'bg-profit/20 text-profit border-profit/30' : 'bg-negative-subtle text-negative border-red-500/30'}>
                                 {spreadSaida > 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
                                 {spreadSaida.toFixed(4)}%
                               </Badge>
@@ -358,7 +358,7 @@ const ImprovedArbitrageCalculator = () => {
                   })()}
 
                       <div className="text-center">
-                        <Badge variant="outline" className={`text-xs ${varTotal >= 0 ? 'bg-profit/10 text-profit border-profit/20' : 'bg-destructive/10 text-destructive border-destructive/20'}`}>
+                        <Badge variant="outline" className={`text-xs ${varTotal >= 0 ? 'bg-profit/10 text-profit border-profit/20' : 'bg-negative-subtle text-negative border-red-500/30'}`}>
                           {varTotal >= 0 ? 'POSITIVO' : 'NEGATIVO'}
                         </Badge>
                       </div>
