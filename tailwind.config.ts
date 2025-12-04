@@ -55,6 +55,10 @@ export default {
           DEFAULT: "hsl(var(--profit))",
           foreground: "hsl(var(--profit-foreground))",
         },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

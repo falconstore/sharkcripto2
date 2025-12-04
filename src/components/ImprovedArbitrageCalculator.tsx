@@ -70,17 +70,21 @@ const ImprovedArbitrageCalculator = () => {
     }
   }, [selectedOpp, addPoint]);
 
-  // Acompanhamento automático de saída
+  // Acompanhamento automático de saída - reage imediatamente às mudanças
   useEffect(() => {
     if (selectedOpp && trackingActive) {
-      const interval = setInterval(() => {
-        setFechamentoSpot(selectedOpp.spot_bid_price.toString());
-        setFechamentoFuturo(selectedOpp.futures_ask_price.toString());
-        calcular(parseFloat(valorInvestido) || 0, parseFloat(entradaSpot) || 0, parseFloat(entradaFuturo) || 0, selectedOpp.spot_bid_price, selectedOpp.futures_ask_price);
-      }, 1000);
-      return () => clearInterval(interval);
+      // Atualiza imediatamente quando selectedOpp muda
+      setFechamentoSpot(selectedOpp.spot_bid_price.toString());
+      setFechamentoFuturo(selectedOpp.futures_ask_price.toString());
+      calcular(
+        parseFloat(valorInvestido) || 0, 
+        parseFloat(entradaSpot) || 0, 
+        parseFloat(entradaFuturo) || 0, 
+        selectedOpp.spot_bid_price, 
+        selectedOpp.futures_ask_price
+      );
     }
-  }, [selectedOpp, trackingActive, valorInvestido, entradaSpot, entradaFuturo]);
+  }, [selectedOpp?.spot_bid_price, selectedOpp?.futures_ask_price, trackingActive, valorInvestido, entradaSpot, entradaFuturo]);
   const calcular = (valor?: number, spotEntrada?: number, futuroEntrada?: number, spotFechamento?: number, futuroFechamento?: number) => {
     const v = valor !== undefined ? valor : parseFloat(valorInvestido) || 0;
     const sE = spotEntrada !== undefined ? spotEntrada : parseFloat(entradaSpot) || 0;
