@@ -225,28 +225,27 @@ async function fetchFundingRates() {
 
 async function handleSpotProtobufMessage(data) {
   try {
-    let buffer = data;
-    try {
-      buffer = await decompressGzip(data);
-    } catch {
-      // Not compressed
-    }
+    // Decode wrapper diretamente (não está comprimido no nível externo)
+    const msg = PushDataV3ApiWrapper.decode(data);
     
-    const wrapper = PushDataV3ApiWrapper.decode(buffer);
+    // Extrair símbolo
+    const symbol = msg.symbol || msg.symbolId;
+    if (!symbol) return;
     
-    if (wrapper.data) {
-      let depthData;
+    // Tentar extrair depth do campo data
+    if (msg.data && msg.data.length > 0) {
+      let depthBuffer = msg.data;
+      
+      // Tentar descomprimir o campo data se necessário
       try {
-        depthData = await decompressGzip(wrapper.data);
+        depthBuffer = await decompressGzip(msg.data);
       } catch {
-        depthData = wrapper.data;
+        // Não está comprimido, usar direto
       }
       
-      const depth = PublicLimitDepthsV3Api.decode(depthData);
+      const depth = PublicLimitDepthsV3Api.decode(depthBuffer);
       
-      if (depth.bids && depth.bids.length > 0 && depth.asks && depth.asks.length > 0) {
-        const symbol = wrapper.symbol || wrapper.symbolId;
-        
+      if (depth.bids?.length > 0 && depth.asks?.length > 0) {
         spotData.set(symbol, {
           bid: parseFloat(depth.bids[0].p),
           ask: parseFloat(depth.asks[0].p),
@@ -255,7 +254,7 @@ async function handleSpotProtobufMessage(data) {
       }
     }
   } catch (error) {
-    // Silently ignore
+    // Silently ignore parse errors
   }
 }
 
@@ -322,16 +321,22 @@ function connectSpotChunk(symbols, chunkId) {
     spotConnections.set(chunkId, { ws, pingInterval, symbols });
   });
   
-  ws.on('message', async (data) => {
-    try {
-      if (Buffer.isBuffer(data)) {
-        await handleSpotProtobufMessage(data);
-      } else {
-        const msg = JSON.parse(data.toString());
-        if (msg.d) {
-          handleSpotJsonMessage(msg);
+  ws.on('message', async (data, isBinary) => {
+    // Ignora mensagens não binárias (ACK de subscribe, PONG)
+    if (!isBinary) {
+      try {
+        const text = data.toString();
+        // Log ACKs apenas no primeiro chunk para debug
+        if (chunkId === 0 && text.includes('SUBSCRIPTION')) {
+          log('DEBUG', `[SPOT #1] ACK recebido`);
         }
-      }
+      } catch {}
+      return;
+    }
+    
+    // Processar dados binários (protobuf)
+    try {
+      await handleSpotProtobufMessage(data);
     } catch (error) {
       // Ignore parse errors
     }
