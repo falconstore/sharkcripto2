@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Trophy } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface CrossingRankingTableProps {
   data: CoinRankingItem[];
@@ -17,6 +18,8 @@ interface CrossingRankingTableProps {
 }
 
 const CrossingRankingTable = ({ data, loading }: CrossingRankingTableProps) => {
+  const isMobile = useIsMobile();
+
   if (loading) {
     return (
       <Card className="lg:col-span-1 relative overflow-hidden animate-fade-in border-border/50 bg-card/80 backdrop-blur-sm" style={{ animationDelay: '200ms' }}>
@@ -83,7 +86,43 @@ const CrossingRankingTable = ({ data, loading }: CrossingRankingTableProps) => {
           <div className="h-[300px] flex items-center justify-center text-muted-foreground">
             Nenhum cruzamento registrado
           </div>
+        ) : isMobile ? (
+          // Mobile: Cards view
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {data.slice(0, 10).map((item, index) => (
+              <div 
+                key={item.pair_symbol}
+                className={`
+                  flex items-center gap-3 p-3 rounded-lg border border-border/50 animate-fade-in
+                  ${index < 3 ? 'bg-gold/5' : 'bg-muted/30'}
+                `}
+                style={{ animationDelay: `${index * 80}ms` }}
+              >
+                {getPositionBadge(index)}
+                <div className="flex-1 min-w-0">
+                  <p className={`font-mono font-semibold truncate ${index < 3 ? 'text-gold' : ''}`}>
+                    {item.pair_symbol}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge 
+                      variant="default" 
+                      className={`text-xs ${
+                        index === 0 ? 'bg-gradient-to-r from-gold to-orange-500 text-primary-foreground' : 
+                          index < 3 ? 'bg-gold/20 text-gold border-gold/30' : 'bg-primary'
+                      }`}
+                    >
+                      {item.total_crossings}x
+                    </Badge>
+                    <span className="text-profit font-mono text-sm">
+                      +{item.avg_spread.toFixed(4)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
+          // Desktop: Table view
           <div className="rounded-lg border border-border/50 overflow-hidden">
             <div className="max-h-[300px] overflow-y-auto">
               <Table>

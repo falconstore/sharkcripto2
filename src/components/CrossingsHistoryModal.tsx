@@ -7,6 +7,8 @@ import { useCrossings, Crossing } from '@/hooks/useCrossings';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TrendingUp } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import CrossingHistoryCard from './CrossingHistoryCard';
 
 interface CrossingsHistoryModalProps {
   open: boolean;
@@ -28,6 +30,7 @@ const CrossingsHistoryModal = ({ open, onOpenChange, pairSymbol }: CrossingsHist
   const [period, setPeriod] = useState<Period>('1h');
   const [crossings, setCrossings] = useState<Crossing[]>([]);
   const [loading, setLoading] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (open) {
@@ -52,11 +55,11 @@ const CrossingsHistoryModal = ({ open, onOpenChange, pairSymbol }: CrossingsHist
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh]">
+      <DialogContent className="max-w-3xl max-h-[80vh] w-[95vw] sm:w-full">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <TrendingUp className="h-5 w-5 text-primary" />
-            Histórico de Cruzamentos - {pairSymbol}
+            <span className="truncate">Histórico - {pairSymbol}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -69,6 +72,7 @@ const CrossingsHistoryModal = ({ open, onOpenChange, pairSymbol }: CrossingsHist
                 variant={period === p ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setPeriod(p)}
+                className="text-xs sm:text-sm"
               >
                 {PERIOD_LABELS[p]}
               </Button>
@@ -76,39 +80,41 @@ const CrossingsHistoryModal = ({ open, onOpenChange, pairSymbol }: CrossingsHist
           </div>
 
           {/* Total de Cruzamentos */}
-          <div className="bg-muted/50 p-4 rounded-lg">
-            <p className="text-sm text-muted-foreground">
+          <div className="bg-muted/50 p-3 sm:p-4 rounded-lg">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Total de cruzamentos em {PERIOD_LABELS[period]}:
             </p>
-            <p className="text-2xl font-bold text-primary">{crossings.length}</p>
+            <p className="text-xl sm:text-2xl font-bold text-primary">{crossings.length}</p>
           </div>
 
-          {/* Tabela de Histórico */}
-          <div className="border rounded-lg overflow-hidden">
-            <div className="max-h-[400px] overflow-y-auto">
-              <Table>
-                <TableHeader className="sticky top-0 bg-background">
-                  <TableRow>
-                    <TableHead>Data/Hora</TableHead>
-                    <TableHead className="text-right">% Saída</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
+          {/* Lista de Histórico - Cards no mobile, Tabela no desktop */}
+          <div className="max-h-[400px] overflow-y-auto">
+            {loading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Carregando histórico...
+              </div>
+            ) : crossings.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum cruzamento encontrado neste período
+              </div>
+            ) : isMobile ? (
+              <div className="space-y-2">
+                {crossings.map((crossing) => (
+                  <CrossingHistoryCard key={crossing.id} crossing={crossing} />
+                ))}
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background">
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                        Carregando histórico...
-                      </TableCell>
+                      <TableHead>Data/Hora</TableHead>
+                      <TableHead className="text-right">% Saída</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
                     </TableRow>
-                  ) : crossings.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                        Nenhum cruzamento encontrado neste período
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    crossings.map((crossing) => (
+                  </TableHeader>
+                  <TableBody>
+                    {crossings.map((crossing) => (
                       <TableRow key={crossing.id}>
                         <TableCell className="font-mono text-sm">
                           {formatDate(crossing.timestamp)}
@@ -123,11 +129,11 @@ const CrossingsHistoryModal = ({ open, onOpenChange, pairSymbol }: CrossingsHist
                           </Badge>
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>

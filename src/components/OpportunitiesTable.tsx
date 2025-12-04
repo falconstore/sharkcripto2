@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Ban, TrendingUp, BarChart3, History, ChevronLeft, ChevronRight, Search, X, Columns, ExternalLink } from 'lucide-react';
+import { Star, Ban, TrendingUp, BarChart3, History, ChevronLeft, ChevronRight, Search, X, Columns, ExternalLink, ChevronDown, Filter } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Table,
   TableBody,
@@ -28,9 +29,11 @@ import { useOpportunities } from '@/hooks/useOpportunities';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useCrossings } from '@/hooks/useCrossings';
 import { useCoinListings } from '@/hooks/useCoinListings';
+import { useIsMobile } from '@/hooks/use-mobile';
 import CrossingsHistoryModal from './CrossingsHistoryModal';
 import NewCoinBadge from './NewCoinBadge';
 import DelistWarning from './DelistWarning';
+import OpportunityCard from './OpportunityCard';
 import { toast } from 'sonner';
 
 type SortField = 'pair_symbol' | 'spread_net_percent_entrada' | 'spread_net_percent_saida' | 'spot_volume_24h' | 'futures_volume_24h';
@@ -60,6 +63,7 @@ const OpportunitiesTable = () => {
   const { favorites, blacklist, toggleFavorite, toggleBlacklist } = usePreferences();
   const { crossingsCount } = useCrossings();
   const { isNewCoin, getDelistingInfo } = useCoinListings();
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   
   // Estados básicos
@@ -71,6 +75,7 @@ const OpportunitiesTable = () => {
   const [selectedPair, setSelectedPair] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   
   // Filtros avançados (inputs digitados)
   const [minEntrada, setMinEntrada] = useState('');
@@ -254,7 +259,7 @@ const OpportunitiesTable = () => {
 
   // Componente de filtros avançados digitados
   const AdvancedFilters = () => (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 p-3 bg-accent/30 rounded-lg">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 p-3 bg-accent/30 rounded-lg">
       <div className="space-y-1">
         <Label className="text-xs">Entrada % mín</Label>
         <Input
@@ -344,6 +349,27 @@ const OpportunitiesTable = () => {
     </div>
   );
 
+  // Componente de filtros colapsáveis para mobile
+  const CollapsibleFilters = () => (
+    <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+      <CollapsibleTrigger asChild>
+        <Button variant="outline" className="w-full justify-between">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4" />
+            Filtros Avançados
+            {activeFiltersCount > 0 && (
+              <Badge variant="secondary" className="ml-1">{activeFiltersCount}</Badge>
+            )}
+          </div>
+          <ChevronDown className={`w-4 h-4 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-2">
+        <AdvancedFilters />
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
   // Pilha de ordenação
   const SortStack = () => {
     if (sortConfigs.length === 0) return null;
@@ -372,25 +398,26 @@ const OpportunitiesTable = () => {
   return (
     <TooltipProvider>
     <Card className="bg-gradient-card hover-lift">
-      <CardHeader>
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-gold" />
-              Oportunidades de Arbitragem
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar par..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 w-48"
-                />
-              </div>
-              
-              {/* Seletor de colunas */}
+      <CardHeader className="space-y-4">
+        {/* Header mobile-friendly */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+            <TrendingUp className="w-5 h-5 text-gold" />
+            Oportunidades
+          </CardTitle>
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:ml-auto">
+            <div className="relative flex-1 sm:flex-initial">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar par..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 w-full sm:w-48"
+              />
+            </div>
+            
+            {/* Seletor de colunas - apenas desktop */}
+            {!isMobile && (
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -416,304 +443,341 @@ const OpportunitiesTable = () => {
                   </div>
                 </PopoverContent>
               </Popover>
+            )}
 
-              {/* Limpar filtros */}
-              {activeFiltersCount > 0 && (
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  <X className="w-4 h-4 mr-1" />
-                  Limpar ({activeFiltersCount})
-                </Button>
-              )}
-            </div>
+            {/* Limpar filtros */}
+            {activeFiltersCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X className="w-4 h-4 mr-1" />
+                Limpar ({activeFiltersCount})
+              </Button>
+            )}
           </div>
-          
-          {/* Filtros avançados */}
-          <AdvancedFilters />
         </div>
+        
+        {/* Filtros avançados - colapsável no mobile */}
+        {isMobile ? <CollapsibleFilters /> : <AdvancedFilters />}
       </CardHeader>
       <CardContent>
-        <div className="rounded-lg border overflow-hidden overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-primary/5">
-                <TableHead className="w-[50px]"></TableHead>
-                {isColumnVisible('pair_symbol') && (
-                  <TableHead>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => handleSort('pair_symbol', e.ctrlKey || e.metaKey)}
-                      className="font-semibold"
-                    >
-                      Par
-                      {sortConfigs.find(c => c.field === 'pair_symbol') && (
-                        <Badge variant="secondary" className="ml-2 text-xs">
-                          {sortConfigs.findIndex(c => c.field === 'pair_symbol') + 1}
-                          {sortConfigs.find(c => c.field === 'pair_symbol')?.order === 'asc' ? '↑' : '↓'}
-                        </Badge>
-                      )}
-                    </Button>
-                  </TableHead>
-                )}
-                {isColumnVisible('spread_net_percent_entrada') && (
-                  <TableHead>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => handleSort('spread_net_percent_entrada', e.ctrlKey || e.metaKey)}
-                      className="font-semibold"
-                    >
-                      Entrada %
-                      {sortConfigs.find(c => c.field === 'spread_net_percent_entrada') && (
-                        <Badge variant="secondary" className="ml-2 text-xs">
-                          {sortConfigs.findIndex(c => c.field === 'spread_net_percent_entrada') + 1}
-                          {sortConfigs.find(c => c.field === 'spread_net_percent_entrada')?.order === 'asc' ? '↑' : '↓'}
-                        </Badge>
-                      )}
-                    </Button>
-                  </TableHead>
-                )}
-                {isColumnVisible('spread_net_percent_saida') && (
-                  <TableHead>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => handleSort('spread_net_percent_saida', e.ctrlKey || e.metaKey)}
-                      className="font-semibold"
-                    >
-                      Saída %
-                      {sortConfigs.find(c => c.field === 'spread_net_percent_saida') && (
-                        <Badge variant="secondary" className="ml-2 text-xs">
-                          {sortConfigs.findIndex(c => c.field === 'spread_net_percent_saida') + 1}
-                          {sortConfigs.find(c => c.field === 'spread_net_percent_saida')?.order === 'asc' ? '↑' : '↓'}
-                        </Badge>
-                      )}
-                    </Button>
-                  </TableHead>
-                )}
-                {isColumnVisible('funding_rate') && (
-                  <TableHead>
-                    <Tooltip>
-                      <TooltipTrigger className="font-semibold">
-                        Funding %
-                      </TooltipTrigger>
-                      <TooltipContent>Taxa de financiamento do contrato futuro</TooltipContent>
-                    </Tooltip>
-                  </TableHead>
-                )}
-                {isColumnVisible('crossings') && (
-                  <TableHead>Cruzamentos (1h)</TableHead>
-                )}
-                {isColumnVisible('spot_bid_price') && (
-                  <TableHead>Preço Spot</TableHead>
-                )}
-                {isColumnVisible('futures_ask_price') && (
-                  <TableHead>Preço Futures</TableHead>
-                )}
-                {isColumnVisible('volumes') && (
-                  <TableHead>
-                    <div className="flex flex-col gap-1">
+        {/* Mobile: Cards view */}
+        {isMobile ? (
+          <div className="space-y-3">
+            {paginatedOpportunities.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                {search || activeFiltersCount > 0 ? 'Nenhuma oportunidade encontrada' : 'Aguardando dados...'}
+              </div>
+            ) : (
+              paginatedOpportunities.map((opp) => (
+                <OpportunityCard
+                  key={opp.pair_symbol}
+                  opportunity={opp}
+                  isFavorite={favorites.has(opp.pair_symbol)}
+                  crossings={getCrossingsForPair(opp.pair_symbol)}
+                  isNewCoin={isNewCoin(opp.pair_symbol)}
+                  delistingInfo={getDelistingInfo(opp.pair_symbol)}
+                  onToggleFavorite={() => {
+                    toggleFavorite(opp.pair_symbol);
+                    toast.success(favorites.has(opp.pair_symbol) ? 'Removido dos favoritos' : 'Adicionado aos favoritos');
+                  }}
+                  onToggleBlacklist={() => {
+                    toggleBlacklist(opp.pair_symbol);
+                    toast.info(`${opp.pair_symbol} adicionado à blacklist`);
+                  }}
+                  onOpenHistory={() => handleOpenHistory(opp.pair_symbol)}
+                  onOpenMexc={() => {
+                    const symbol = opp.pair_symbol.replace('_USDT', '').replace('USDT', '');
+                    window.open(`https://www.mexc.com/pt-BR/exchange/${symbol}_USDT`, 'mexc-spot');
+                    window.open(`https://futures.mexc.com/pt-BR/exchange/${symbol}_USDT`, 'mexc-futures');
+                  }}
+                />
+              ))
+            )}
+          </div>
+        ) : (
+          // Desktop: Table view
+          <div className="rounded-lg border overflow-hidden overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-primary/5">
+                  <TableHead className="w-[50px]"></TableHead>
+                  {isColumnVisible('pair_symbol') && (
+                    <TableHead>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={(e) => handleSort('spot_volume_24h', e.ctrlKey || e.metaKey)}
-                        className="font-semibold h-auto py-1"
+                        onClick={(e) => handleSort('pair_symbol', e.ctrlKey || e.metaKey)}
+                        className="font-semibold"
                       >
-                        Vol. Spot
-                        {sortConfigs.find(c => c.field === 'spot_volume_24h') && (
-                          <Badge variant="secondary" className="ml-1 text-xs">
-                            {sortConfigs.find(c => c.field === 'spot_volume_24h')?.order === 'asc' ? '↑' : '↓'}
+                        Par
+                        {sortConfigs.find(c => c.field === 'pair_symbol') && (
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            {sortConfigs.findIndex(c => c.field === 'pair_symbol') + 1}
+                            {sortConfigs.find(c => c.field === 'pair_symbol')?.order === 'asc' ? '↑' : '↓'}
                           </Badge>
                         )}
                       </Button>
+                    </TableHead>
+                  )}
+                  {isColumnVisible('spread_net_percent_entrada') && (
+                    <TableHead>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={(e) => handleSort('futures_volume_24h', e.ctrlKey || e.metaKey)}
-                        className="font-semibold h-auto py-1"
+                        onClick={(e) => handleSort('spread_net_percent_entrada', e.ctrlKey || e.metaKey)}
+                        className="font-semibold"
                       >
-                        Vol. Fut
-                        {sortConfigs.find(c => c.field === 'futures_volume_24h') && (
-                          <Badge variant="secondary" className="ml-1 text-xs">
-                            {sortConfigs.find(c => c.field === 'futures_volume_24h')?.order === 'asc' ? '↑' : '↓'}
+                        Entrada %
+                        {sortConfigs.find(c => c.field === 'spread_net_percent_entrada') && (
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            {sortConfigs.findIndex(c => c.field === 'spread_net_percent_entrada') + 1}
+                            {sortConfigs.find(c => c.field === 'spread_net_percent_entrada')?.order === 'asc' ? '↑' : '↓'}
                           </Badge>
                         )}
                       </Button>
-                    </div>
-                  </TableHead>
-                )}
-                <TableHead className="w-[80px]">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedOpportunities.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                    {search || activeFiltersCount > 0 ? 'Nenhuma oportunidade encontrada' : 'Aguardando dados...'}
-                  </TableCell>
-                </TableRow>
-              ) : (
-              paginatedOpportunities.map((opp, index) => {
-                  const isFavorite = favorites.has(opp.pair_symbol);
-                  const crossings = getCrossingsForPair(opp.pair_symbol);
-                  return (
-                    <TableRow 
-                      key={opp.pair_symbol}
-                      className={`
-                        hover:bg-accent/80 hover:shadow-lg hover:scale-[1.01] cursor-pointer 
-                        transition-all duration-200 animate-fade-in
-                        ${index % 2 === 0 ? 'bg-card' : 'bg-accent/20'}
-                        ${isFavorite ? 'bg-gold/5 hover:bg-gold/10' : ''}
-                      `}
-                      style={{ animationDelay: `${index * 30}ms` }}
-                    >
-                      <TableCell>
+                    </TableHead>
+                  )}
+                  {isColumnVisible('spread_net_percent_saida') && (
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleSort('spread_net_percent_saida', e.ctrlKey || e.metaKey)}
+                        className="font-semibold"
+                      >
+                        Saída %
+                        {sortConfigs.find(c => c.field === 'spread_net_percent_saida') && (
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            {sortConfigs.findIndex(c => c.field === 'spread_net_percent_saida') + 1}
+                            {sortConfigs.find(c => c.field === 'spread_net_percent_saida')?.order === 'asc' ? '↑' : '↓'}
+                          </Badge>
+                        )}
+                      </Button>
+                    </TableHead>
+                  )}
+                  {isColumnVisible('funding_rate') && (
+                    <TableHead>
+                      <Tooltip>
+                        <TooltipTrigger className="font-semibold">
+                          Funding %
+                        </TooltipTrigger>
+                        <TooltipContent>Taxa de financiamento do contrato futuro</TooltipContent>
+                      </Tooltip>
+                    </TableHead>
+                  )}
+                  {isColumnVisible('crossings') && (
+                    <TableHead>Cruzamentos (1h)</TableHead>
+                  )}
+                  {isColumnVisible('spot_bid_price') && (
+                    <TableHead>Preço Spot</TableHead>
+                  )}
+                  {isColumnVisible('futures_ask_price') && (
+                    <TableHead>Preço Futures</TableHead>
+                  )}
+                  {isColumnVisible('volumes') && (
+                    <TableHead>
+                      <div className="flex flex-col gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            toggleFavorite(opp.pair_symbol);
-                            toast.success(isFavorite ? 'Removido dos favoritos' : 'Adicionado aos favoritos');
-                          }}
-                          className="h-8 w-8 p-0 hover:scale-110 transition-transform"
+                          onClick={(e) => handleSort('spot_volume_24h', e.ctrlKey || e.metaKey)}
+                          className="font-semibold h-auto py-1"
                         >
-                          <Star className={`w-5 h-5 ${isFavorite ? 'fill-gold text-gold drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]' : 'text-muted-foreground'}`} />
+                          Vol. Spot
+                          {sortConfigs.find(c => c.field === 'spot_volume_24h') && (
+                            <Badge variant="secondary" className="ml-1 text-xs">
+                              {sortConfigs.find(c => c.field === 'spot_volume_24h')?.order === 'asc' ? '↑' : '↓'}
+                            </Badge>
+                          )}
                         </Button>
-                      </TableCell>
-                      {isColumnVisible('pair_symbol') && (
-                        <TableCell className="font-mono font-semibold">
-                          <div className="flex items-center gap-2">
-                            {getDelistingInfo(opp.pair_symbol) && (
-                              <DelistWarning scheduledDate={getDelistingInfo(opp.pair_symbol)!.scheduled_date} />
-                            )}
-                            <span>{opp.pair_symbol}</span>
-                            {isNewCoin(opp.pair_symbol) && <NewCoinBadge />}
-                          </div>
-                        </TableCell>
-                      )}
-                      {isColumnVisible('spread_net_percent_entrada') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleSort('futures_volume_24h', e.ctrlKey || e.metaKey)}
+                          className="font-semibold h-auto py-1"
+                        >
+                          Vol. Fut
+                          {sortConfigs.find(c => c.field === 'futures_volume_24h') && (
+                            <Badge variant="secondary" className="ml-1 text-xs">
+                              {sortConfigs.find(c => c.field === 'futures_volume_24h')?.order === 'asc' ? '↑' : '↓'}
+                            </Badge>
+                          )}
+                        </Button>
+                      </div>
+                    </TableHead>
+                  )}
+                  <TableHead className="w-[80px]">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedOpportunities.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                      {search || activeFiltersCount > 0 ? 'Nenhuma oportunidade encontrada' : 'Aguardando dados...'}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                paginatedOpportunities.map((opp, index) => {
+                    const isFavorite = favorites.has(opp.pair_symbol);
+                    const crossings = getCrossingsForPair(opp.pair_symbol);
+                    return (
+                      <TableRow 
+                        key={opp.pair_symbol}
+                        className={`
+                          hover:bg-accent/80 hover:shadow-lg hover:scale-[1.01] cursor-pointer 
+                          transition-all duration-200 animate-fade-in
+                          ${index % 2 === 0 ? 'bg-card' : 'bg-accent/20'}
+                          ${isFavorite ? 'bg-gold/5 hover:bg-gold/10' : ''}
+                        `}
+                        style={{ animationDelay: `${index * 30}ms` }}
+                      >
                         <TableCell>
-                          <Badge 
-                            variant="outline"
-                            className={`font-mono font-semibold px-3 py-1 ${
-                              opp.spread_net_percent_entrada >= 0 
-                                ? 'bg-profit/20 text-profit border-profit/40' 
-                                : 'bg-negative-subtle text-negative border-red-500/40'
-                            }`}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              toggleFavorite(opp.pair_symbol);
+                              toast.success(isFavorite ? 'Removido dos favoritos' : 'Adicionado aos favoritos');
+                            }}
+                            className="h-8 w-8 p-0 hover:scale-110 transition-transform"
                           >
-                            {formatNumber(opp.spread_net_percent_entrada, 4)}%
-                          </Badge>
+                            <Star className={`w-5 h-5 ${isFavorite ? 'fill-gold text-gold drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]' : 'text-muted-foreground'}`} />
+                          </Button>
                         </TableCell>
-                      )}
-                      {isColumnVisible('spread_net_percent_saida') && (
-                        <TableCell>
-                          <Badge 
-                            variant="outline"
-                            className={`font-mono font-semibold px-3 py-1 ${
-                              opp.spread_net_percent_saida >= 0 
-                                ? 'bg-profit/20 text-profit border-profit/40' 
-                                : 'bg-negative-subtle text-negative border-red-500/40'
-                            }`}
-                          >
-                            {formatNumber(opp.spread_net_percent_saida, 4)}%
-                          </Badge>
-                        </TableCell>
-                      )}
-                      {isColumnVisible('funding_rate') && (
-                        <TableCell className="text-center">
-                          <span className={`font-mono font-semibold ${
-                            (opp.funding_rate || 0) >= 0 ? 'text-profit' : 'text-negative'
-                          }`}>
-                            {((opp.funding_rate || 0) * 100).toFixed(4)}%
-                          </span>
-                        </TableCell>
-                      )}
-                      {isColumnVisible('crossings') && (
-                        <TableCell>
-                          <div className="flex items-center gap-2">
+                        {isColumnVisible('pair_symbol') && (
+                          <TableCell className="font-mono font-semibold">
+                            <div className="flex items-center gap-2">
+                              {getDelistingInfo(opp.pair_symbol) && (
+                                <DelistWarning scheduledDate={getDelistingInfo(opp.pair_symbol)!.scheduled_date} />
+                              )}
+                              <span>{opp.pair_symbol}</span>
+                              {isNewCoin(opp.pair_symbol) && <NewCoinBadge />}
+                            </div>
+                          </TableCell>
+                        )}
+                        {isColumnVisible('spread_net_percent_entrada') && (
+                          <TableCell>
                             <Badge 
-                              variant="secondary" 
-                              className={`text-xs font-semibold px-2 py-1 ${
-                                crossings > 0 ? 'bg-gold/20 text-gold border-gold/30' : ''
+                              variant="outline"
+                              className={`font-mono font-semibold px-3 py-1 ${
+                                opp.spread_net_percent_entrada >= 0 
+                                  ? 'bg-profit/20 text-profit border-profit/40' 
+                                  : 'bg-negative-subtle text-negative border-red-500/40'
                               }`}
                             >
-                              {crossings}
+                              {formatNumber(opp.spread_net_percent_entrada, 4)}%
                             </Badge>
-                            {crossings > 0 && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleOpenHistory(opp.pair_symbol)}
-                                className="h-6 w-6"
+                          </TableCell>
+                        )}
+                        {isColumnVisible('spread_net_percent_saida') && (
+                          <TableCell>
+                            <Badge 
+                              variant="outline"
+                              className={`font-mono font-semibold px-3 py-1 ${
+                                opp.spread_net_percent_saida >= 0 
+                                  ? 'bg-profit/20 text-profit border-profit/40' 
+                                  : 'bg-negative-subtle text-negative border-red-500/40'
+                              }`}
+                            >
+                              {formatNumber(opp.spread_net_percent_saida, 4)}%
+                            </Badge>
+                          </TableCell>
+                        )}
+                        {isColumnVisible('funding_rate') && (
+                          <TableCell className="text-center">
+                            <span className={`font-mono font-semibold ${
+                              (opp.funding_rate || 0) >= 0 ? 'text-profit' : 'text-negative'
+                            }`}>
+                              {((opp.funding_rate || 0) * 100).toFixed(4)}%
+                            </span>
+                          </TableCell>
+                        )}
+                        {isColumnVisible('crossings') && (
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Badge 
+                                variant="secondary" 
+                                className={`text-xs font-semibold px-2 py-1 ${
+                                  crossings > 0 ? 'bg-gold/20 text-gold border-gold/30' : ''
+                                }`}
                               >
-                                <History className="w-3 h-3" />
-                              </Button>
-                            )}
+                                {crossings}
+                              </Badge>
+                              {crossings > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleOpenHistory(opp.pair_symbol)}
+                                  className="h-6 w-6"
+                                >
+                                  <History className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                        {isColumnVisible('spot_bid_price') && (
+                          <TableCell className="font-mono">
+                            ${formatNumber(opp.spot_ask_price || opp.spot_bid_price, 8)}
+                          </TableCell>
+                        )}
+                        {isColumnVisible('futures_ask_price') && (
+                          <TableCell className="font-mono">
+                            ${formatNumber(opp.futures_bid_price || opp.futures_ask_price, 8)}
+                          </TableCell>
+                        )}
+                        {isColumnVisible('volumes') && (
+                          <TableCell className="font-mono text-sm">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{formatVolume(opp.spot_volume_24h)}</span>
+                              <span className="text-muted-foreground">/ {formatVolume(opp.futures_volume_24h)}</span>
+                            </div>
+                          </TableCell>
+                        )}
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    const symbol = opp.pair_symbol.replace('_USDT', '').replace('USDT', '');
+                                    window.open(`https://www.mexc.com/pt-BR/exchange/${symbol}_USDT`, 'mexc-spot');
+                                    window.open(`https://futures.mexc.com/pt-BR/exchange/${symbol}_USDT`, 'mexc-futures');
+                                  }}
+                                  className="h-8 w-8 text-gold hover:text-gold hover:bg-gold/10"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Abrir Spot e Futures</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    toggleBlacklist(opp.pair_symbol);
+                                    toast.info(`${opp.pair_symbol} adicionado à blacklist`);
+                                  }}
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                >
+                                  <Ban className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Adicionar à Blacklist</TooltipContent>
+                            </Tooltip>
                           </div>
                         </TableCell>
-                      )}
-                      {isColumnVisible('spot_bid_price') && (
-                        <TableCell className="font-mono">
-                          ${formatNumber(opp.spot_ask_price || opp.spot_bid_price, 8)}
-                        </TableCell>
-                      )}
-                      {isColumnVisible('futures_ask_price') && (
-                        <TableCell className="font-mono">
-                          ${formatNumber(opp.futures_bid_price || opp.futures_ask_price, 8)}
-                        </TableCell>
-                      )}
-                      {isColumnVisible('volumes') && (
-                        <TableCell className="font-mono text-sm">
-                          <div className="flex flex-col gap-0.5">
-                            <span>{formatVolume(opp.spot_volume_24h)}</span>
-                            <span className="text-muted-foreground">/ {formatVolume(opp.futures_volume_24h)}</span>
-                          </div>
-                        </TableCell>
-                      )}
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  const symbol = opp.pair_symbol.replace('_USDT', '').replace('USDT', '');
-                                  window.open(`https://www.mexc.com/pt-BR/exchange/${symbol}_USDT`, 'mexc-spot');
-                                  window.open(`https://futures.mexc.com/pt-BR/exchange/${symbol}_USDT`, 'mexc-futures');
-                                }}
-                                className="h-8 w-8 text-gold hover:text-gold hover:bg-gold/10"
-                              >
-                                <ExternalLink className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Abrir Spot e Futures</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  toggleBlacklist(opp.pair_symbol);
-                                  toast.info(`${opp.pair_symbol} adicionado à blacklist`);
-                                }}
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                              >
-                                <Ban className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Adicionar à Blacklist</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
         {/* Paginação */}
         {filteredAndSorted.length > 0 && (
