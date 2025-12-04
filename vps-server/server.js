@@ -1,13 +1,9 @@
 /**
- * 🦈 Shark Crypto Monitor
+ * 🦈 Shark Crypto Monitor - VPS Edition
  * MEXC Arbitrage Monitor with WebSocket + Protocol Buffers
  * 
- * Features:
- * - Real-time spot prices via WebSocket + Protobuf
- * - Real-time futures prices via WebSocket
- * - Arbitrage spread calculation
- * - Supabase integration for data persistence
- * - Automatic reconnection
+ * This version uses Edge Function API instead of direct database connection
+ * for better security with Lovable Cloud.
  */
 
 require('dotenv').config();
@@ -15,7 +11,6 @@ const WebSocket = require('ws');
 const axios = require('axios');
 const protobuf = require('protobufjs');
 const zlib = require('zlib');
-const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
 
 // ==============================================
@@ -23,9 +18,10 @@ const path = require('path');
 // ==============================================
 
 const CONFIG = {
-  // Supabase
-  supabaseUrl: process.env.SUPABASE_URL,
-  supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  // Lovable Cloud API
+  edgeFunctionUrl: process.env.EDGE_FUNCTION_URL || 'https://jschuymzkukzthesevoy.supabase.co/functions/v1/vps-monitor-sync',
+  monitorApiKey: process.env.MONITOR_API_KEY,
+  supabaseAnonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzY2h1eW16a3VrenRoZXNldm95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4NzU3NTAsImV4cCI6MjA3ODQ1MTc1MH0.ebPXVdcAJ3YLZbtB0j_8lZcvj2USBWA-QNhWSP27Ozk',
   
   // MEXC Endpoints
   mexcSpotWs: 'wss://wbs-api.mexc.com/ws',
@@ -35,6 +31,7 @@ const CONFIG = {
   
   // Monitor settings
   updateIntervalMs: parseInt(process.env.UPDATE_INTERVAL_MS) || 1000,
+  syncIntervalMs: parseInt(process.env.SYNC_INTERVAL_MS) || 2000,
   minVolumeUsdt: parseFloat(process.env.MIN_VOLUME_USDT) || 50000,
   crossingThreshold: parseFloat(process.env.CROSSING_THRESHOLD) || 0,
   
@@ -48,12 +45,6 @@ const CONFIG = {
 };
 
 // ==============================================
-// Supabase Client
-// ==============================================
-
-const supabase = createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
-
-// ==============================================
 // Data Storage
 // ==============================================
 
@@ -61,6 +52,7 @@ const spotData = new Map();      // symbol -> { bid, ask, volume24h, timestamp }
 const futuresData = new Map();   // symbol -> { bid, ask, volume24h, fundingRate, timestamp }
 const opportunities = new Map(); // symbol -> full opportunity object
 const lastCrossings = new Map(); // symbol -> last crossing timestamp
+const pendingCrossings = [];     // Queue of crossings to send
 
 // ==============================================
 // Protocol Buffers Setup
@@ -102,8 +94,63 @@ function decompressGzip(data) {
 }
 
 function formatSymbol(symbol) {
-  // Remove _USDT suffix for display
   return symbol.replace('_USDT', '').replace('USDT', '');
+}
+
+// ==============================================
+// Edge Function API
+// ==============================================
+
+async function callEdgeFunction(action, data) {
+  try {
+    const response = await axios.post(
+      CONFIG.edgeFunctionUrl,
+      { action, data },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': CONFIG.supabaseAnonKey,
+          'x-monitor-key': CONFIG.monitorApiKey,
+        },
+        timeout: 10000,
+      }
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      log('ERROR', `Edge Function error: ${error.response.status}`, error.response.data);
+    } else {
+      log('ERROR', `Edge Function connection error: ${error.message}`);
+    }
+    return null;
+  }
+}
+
+async function syncOpportunities() {
+  const opportunitiesList = Array.from(opportunities.values());
+  
+  if (opportunitiesList.length === 0) return;
+  
+  const result = await callEdgeFunction('update_opportunities', opportunitiesList);
+  
+  if (result?.success) {
+    log('DEBUG', `Sincronizadas ${opportunitiesList.length} oportunidades`);
+  }
+}
+
+async function sendPendingCrossings() {
+  while (pendingCrossings.length > 0) {
+    const crossing = pendingCrossings.shift();
+    const result = await callEdgeFunction('record_crossing', crossing);
+    
+    if (result?.success) {
+      log('INFO', `🚀 Cruzamento enviado: ${crossing.pair_symbol} @ ${crossing.spread_net_percent_saida.toFixed(4)}%`);
+    } else {
+      // Put it back if failed
+      pendingCrossings.unshift(crossing);
+      break;
+    }
+  }
 }
 
 // ==============================================
@@ -115,7 +162,6 @@ async function fetchFuturesSymbols() {
     const response = await axios.get(`${CONFIG.mexcFuturesApi}/contract/detail`);
     const contracts = response.data.data || [];
     
-    // Filter USDT perpetual contracts
     const symbols = contracts
       .filter(c => c.quoteCoin === 'USDT' && c.state === 0)
       .map(c => c.symbol);
@@ -133,7 +179,6 @@ async function fetchSpotSymbols() {
     const response = await axios.get(`${CONFIG.mexcSpotApi}/ticker/24hr`);
     const tickers = response.data || [];
     
-    // Filter USDT pairs with volume
     const symbols = tickers
       .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) >= CONFIG.minVolumeUsdt)
       .map(t => t.symbol);
@@ -204,20 +249,16 @@ function connectSpotWebSocket(symbols) {
   
   spotWs.on('message', async (data) => {
     try {
-      // Check if it's binary (protobuf) or text (JSON)
       if (Buffer.isBuffer(data)) {
         await handleSpotProtobufMessage(data);
       } else {
         const msg = JSON.parse(data.toString());
-        if (msg.msg === 'PONG') {
-          // Ping response, ignore
-        } else if (msg.d) {
-          // Fallback JSON format
+        if (msg.d) {
           handleSpotJsonMessage(msg);
         }
       }
     } catch (error) {
-      // Ignore parse errors for now
+      // Ignore parse errors
     }
   });
   
@@ -234,15 +275,13 @@ function connectSpotWebSocket(symbols) {
 
 async function handleSpotProtobufMessage(data) {
   try {
-    // Try to decompress if gzipped
     let buffer = data;
     try {
       buffer = await decompressGzip(data);
     } catch {
-      // Not compressed, use as is
+      // Not compressed
     }
     
-    // Decode protobuf
     const wrapper = PushDataV3ApiWrapper.decode(buffer);
     
     if (wrapper.data) {
@@ -266,7 +305,7 @@ async function handleSpotProtobufMessage(data) {
       }
     }
   } catch (error) {
-    // Silently ignore protobuf parse errors
+    // Silently ignore
   }
 }
 
@@ -308,7 +347,6 @@ function connectFuturesWebSocket(symbols) {
   futuresWs.on('open', () => {
     log('INFO', '✅ WebSocket Futures conectado');
     
-    // Subscribe to each symbol
     for (const symbol of symbols) {
       const subscribeMsg = {
         method: 'sub.depth.full',
@@ -322,7 +360,6 @@ function connectFuturesWebSocket(symbols) {
     
     log('INFO', `Subscrito em ${symbols.length} símbolos futures`);
     
-    // Setup ping interval
     futuresPingInterval = setInterval(() => {
       if (futuresWs.readyState === WebSocket.OPEN) {
         futuresWs.send(JSON.stringify({ method: 'ping' }));
@@ -347,7 +384,7 @@ function connectFuturesWebSocket(symbols) {
         }
       }
     } catch (error) {
-      // Ignore parse errors
+      // Ignore
     }
   });
   
@@ -376,21 +413,11 @@ function calculateArbitrage(symbol, spot, futures, fundingRate = 0) {
   
   if (!spotBid || !spotAsk || !futuresBid || !futuresAsk) return null;
   
-  // Spread Bruto de Saída: (Spot Bid - Futures Ask) / Futures Ask
   const spreadGrossSaida = ((spotBid - futuresAsk) / futuresAsk) * 100;
-  
-  // Spread Bruto de Entrada: (Futures Bid - Spot Ask) / Spot Ask
   const spreadGrossEntrada = ((futuresBid - spotAsk) / spotAsk) * 100;
-  
-  // Total fees
   const totalFees = CONFIG.spotTakerFee + CONFIG.futuresTakerFee;
-  
-  // Spread Líquido (descontando taxas)
   const spreadNetSaida = spreadGrossSaida - totalFees;
   const spreadNetEntrada = spreadGrossEntrada - totalFees;
-  
-  // Funding rate adjustment (if applicable)
-  const fundingRatePercent = fundingRate * 100;
   
   return {
     pair_symbol: formatSymbol(symbol),
@@ -413,64 +440,25 @@ function calculateArbitrage(symbol, spot, futures, fundingRate = 0) {
 }
 
 // ==============================================
-// Supabase Integration
+// Crossing Detection
 // ==============================================
 
-async function updateSupabase() {
-  const opportunitiesList = Array.from(opportunities.values());
-  
-  if (opportunitiesList.length === 0) return;
-  
-  try {
-    // Upsert opportunities
-    const { error } = await supabase
-      .from('arbitrage_opportunities')
-      .upsert(opportunitiesList, {
-        onConflict: 'pair_symbol',
-        ignoreDuplicates: false
-      });
-    
-    if (error) {
-      log('ERROR', 'Erro ao atualizar Supabase', { error: error.message });
-    } else {
-      log('DEBUG', `Atualizadas ${opportunitiesList.length} oportunidades no Supabase`);
-    }
-  } catch (error) {
-    log('ERROR', 'Erro de conexão Supabase', { error: error.message });
-  }
-}
-
-async function recordCrossing(opportunity) {
+function checkCrossing(opportunity) {
   const symbol = opportunity.pair_symbol;
   const now = Date.now();
   
-  // Check if we already recorded a crossing recently (within 5 seconds)
   const lastCrossing = lastCrossings.get(symbol);
   if (lastCrossing && (now - lastCrossing) < 5000) {
     return;
   }
   
-  // Check if spread crossed the threshold
   if (opportunity.spread_net_percent_saida > CONFIG.crossingThreshold) {
     lastCrossings.set(symbol, now);
     
-    try {
-      const { error } = await supabase
-        .from('pair_crossings')
-        .insert({
-          pair_symbol: symbol,
-          spread_net_percent_saida: opportunity.spread_net_percent_saida,
-          timestamp: new Date().toISOString()
-        });
-      
-      if (error) {
-        log('ERROR', 'Erro ao registrar cruzamento', { error: error.message });
-      } else {
-        log('INFO', `🚀 Cruzamento registrado: ${symbol} @ ${opportunity.spread_net_percent_saida.toFixed(4)}%`);
-      }
-    } catch (error) {
-      log('ERROR', 'Erro de conexão ao registrar cruzamento', { error: error.message });
-    }
+    pendingCrossings.push({
+      pair_symbol: symbol,
+      spread_net_percent_saida: opportunity.spread_net_percent_saida
+    });
   }
 }
 
@@ -480,38 +468,28 @@ async function recordCrossing(opportunity) {
 
 let fundingRates = {};
 
-async function processData() {
+function processData() {
   let processedCount = 0;
   
-  // Process all symbols that have both spot and futures data
   for (const [symbol, spot] of spotData.entries()) {
-    // Convert spot symbol (BTCUSDT) to futures symbol (BTC_USDT)
     const futuresSymbol = symbol.replace('USDT', '_USDT');
     const futures = futuresData.get(futuresSymbol);
     
     if (!futures) continue;
     
-    // Check data freshness (max 10 seconds old)
     const now = Date.now();
     if (now - spot.timestamp > 10000 || now - futures.timestamp > 10000) {
       continue;
     }
     
-    // Calculate arbitrage
     const fundingRate = fundingRates[futuresSymbol] || 0;
     const opportunity = calculateArbitrage(symbol, spot, futures, fundingRate);
     
     if (opportunity) {
       opportunities.set(symbol, opportunity);
       processedCount++;
-      
-      // Check for crossings
-      await recordCrossing(opportunity);
+      checkCrossing(opportunity);
     }
-  }
-  
-  if (processedCount > 0) {
-    await updateSupabase();
   }
 }
 
@@ -520,13 +498,25 @@ async function processData() {
 // ==============================================
 
 async function initialize() {
-  log('INFO', '🦈 Shark Crypto Monitor iniciando...');
+  log('INFO', '🦈 Shark Crypto Monitor (VPS Edition) iniciando...');
+  log('INFO', `📡 Edge Function URL: ${CONFIG.edgeFunctionUrl}`);
   
   // Validate configuration
-  if (!CONFIG.supabaseUrl || !CONFIG.supabaseKey) {
-    log('ERROR', '❌ SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórios!');
+  if (!CONFIG.monitorApiKey) {
+    log('ERROR', '❌ MONITOR_API_KEY é obrigatório!');
     process.exit(1);
   }
+  
+  // Test Edge Function connection
+  log('INFO', 'Testando conexão com Edge Function...');
+  const healthCheck = await callEdgeFunction('health_check', {});
+  
+  if (!healthCheck?.success) {
+    log('ERROR', '❌ Falha ao conectar com Edge Function. Verifique MONITOR_API_KEY.');
+    process.exit(1);
+  }
+  
+  log('INFO', '✅ Conexão com Edge Function OK');
   
   // Load protocol buffers
   const protoLoaded = await loadProtoFiles();
@@ -542,7 +532,6 @@ async function initialize() {
     fetchFuturesSymbols()
   ]);
   
-  // Find common symbols
   const spotSet = new Set(spotSymbols);
   const commonSymbols = futuresSymbols.filter(s => {
     const spotSymbol = s.replace('_USDT', 'USDT');
@@ -567,6 +556,12 @@ async function initialize() {
   
   // Start processing loop
   setInterval(processData, CONFIG.updateIntervalMs);
+  
+  // Start sync loop (send to Edge Function)
+  setInterval(async () => {
+    await syncOpportunities();
+    await sendPendingCrossings();
+  }, CONFIG.syncIntervalMs);
   
   // Refresh funding rates every 5 minutes
   setInterval(async () => {
