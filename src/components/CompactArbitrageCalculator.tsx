@@ -190,6 +190,14 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
     return (fE / sE - 1) * 100;
   }, [entradaSpot, entradaFuturo]);
 
+  const spreadSaida = useMemo(() => {
+    if (!fechamentoSpot || !fechamentoFuturo) return 0;
+    const sF = parseFloat(fechamentoSpot);
+    const fF = parseFloat(fechamentoFuturo);
+    if (sF <= 0 || fF <= 0) return 0;
+    return ((sF - fF) / sF) * 100;
+  }, [fechamentoSpot, fechamentoFuturo]);
+
   const showProfitAlert = varTotal > 0 && varTotal >= profitThresholdPercent;
 
   return (
@@ -267,7 +275,7 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
       <CardContent className="p-3 pt-0 space-y-3">
         {/* Valor Investido */}
         <div className="space-y-1">
-          <Label className="text-[10px] text-muted-foreground">Valor (USD)</Label>
+          <Label className="text-[10px] text-muted-foreground">Valor (USDT)</Label>
           <Input
             type="number"
             placeholder="0.00"
@@ -403,6 +411,20 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
               {spreadEntrada.toFixed(4)}%
             </Badge>
           </div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-muted-foreground">Spread Saída:</span>
+            <Badge
+              variant="outline"
+              className={`text-[10px] px-1.5 py-0 ${
+                spreadSaida >= 0
+                  ? 'bg-profit/20 text-profit border-profit/30'
+                  : 'bg-negative-subtle text-negative border-red-500/30'
+              }`}
+            >
+              {spreadSaida >= 0 ? <TrendingUp className="w-2 h-2 mr-0.5" /> : <TrendingDown className="w-2 h-2 mr-0.5" />}
+              {spreadSaida.toFixed(4)}%
+            </Badge>
+          </div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] text-muted-foreground">Var. Total:</span>
             <span className={`font-mono text-xs font-semibold ${varTotal >= 0 ? 'text-profit' : 'text-negative'}`}>
@@ -414,7 +436,7 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
               <span className="text-xs font-medium">Lucro:</span>
               <div className="text-right">
                 <p className={`font-mono text-sm font-bold ${lucroUSD >= 0 ? 'text-profit' : 'text-negative'}`}>
-                  ${lucroUSD.toFixed(2)}
+                  {lucroUSD.toFixed(2)} USDT
                 </p>
                 <p className="font-mono text-[10px] text-muted-foreground">
                   R$ {lucroBRL.toFixed(2)}

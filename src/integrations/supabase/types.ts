@@ -445,6 +445,57 @@ export type Database = {
         }
         Relationships: []
       }
+      user_calculators: {
+        Row: {
+          calculator_id: string
+          created_at: string | null
+          entrada_futuro: string | null
+          entrada_spot: string | null
+          fechamento_futuro: string | null
+          fechamento_spot: string | null
+          id: string
+          order_index: number | null
+          profit_threshold_percent: number | null
+          selected_pair: string | null
+          tracking_active: boolean | null
+          updated_at: string | null
+          user_id: string
+          valor_investido: string | null
+        }
+        Insert: {
+          calculator_id: string
+          created_at?: string | null
+          entrada_futuro?: string | null
+          entrada_spot?: string | null
+          fechamento_futuro?: string | null
+          fechamento_spot?: string | null
+          id?: string
+          order_index?: number | null
+          profit_threshold_percent?: number | null
+          selected_pair?: string | null
+          tracking_active?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          valor_investido?: string | null
+        }
+        Update: {
+          calculator_id?: string
+          created_at?: string | null
+          entrada_futuro?: string | null
+          entrada_spot?: string | null
+          fechamento_futuro?: string | null
+          fechamento_spot?: string | null
+          id?: string
+          order_index?: number | null
+          profit_threshold_percent?: number | null
+          selected_pair?: string | null
+          tracking_active?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          valor_investido?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null

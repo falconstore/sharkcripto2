@@ -24,6 +24,7 @@ interface CalculatorStore {
   reorderCalculators: (startIndex: number, endIndex: number) => void;
   toggleSound: () => void;
   getTotalProfit: () => number;
+  setCalculators: (calculators: CalculatorData[]) => void;
 }
 
 const createEmptyCalculator = (order: number): CalculatorData => ({
@@ -90,6 +91,10 @@ export const useCalculatorStore = create<CalculatorStore>()(
       getTotalProfit: () => {
         const { calculators } = get();
         return calculators.reduce((sum, calc) => sum + (calc.currentProfit || 0), 0);
+      },
+
+      setCalculators: (calculators: CalculatorData[]) => {
+        set({ calculators });
       },
     }),
     {

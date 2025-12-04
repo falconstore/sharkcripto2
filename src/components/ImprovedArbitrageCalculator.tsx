@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Calculator, TrendingUp, TrendingDown, DollarSign, Play, Pause, Save, History as HistoryIcon, Wallet } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, Play, Pause, Save, History as HistoryIcon, Wallet } from 'lucide-react';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useCalculationHistory } from '@/hooks/useCalculationHistory';
@@ -164,7 +164,7 @@ const ImprovedArbitrageCalculator = () => {
                 {/* Valor Investido */}
                 <div className="space-y-2">
                   <Label htmlFor="valorInvestido" className="text-sm font-medium">
-                    Valor Investido (USD)
+                    Valor Investido (USDT)
                   </Label>
                   <Input id="valorInvestido" type="number" placeholder="0.00" value={valorInvestido} onChange={e => setValorInvestido(e.target.value)} className="font-mono" />
                 </div>
@@ -372,10 +372,9 @@ const ImprovedArbitrageCalculator = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card className={`${lucroUSD >= 0 ? 'bg-profit/5 border-profit/20' : 'bg-destructive/5 border-destructive/20'}`}>
                     <CardContent className="p-4 text-center">
-                      <div className="text-xs text-muted-foreground mb-2">Lucro em USD</div>
+                      <div className="text-xs text-muted-foreground mb-2">Lucro em USDT</div>
                       <div className={`text-3xl font-bold font-mono ${lucroUSD >= 0 ? 'text-profit' : 'text-destructive'}`}>
-                        <DollarSign className="inline w-6 h-6" />
-                        {lucroUSD.toFixed(2)}
+                        {lucroUSD.toFixed(2)} USDT
                       </div>
                     </CardContent>
                   </Card>
@@ -419,7 +418,7 @@ const ImprovedArbitrageCalculator = () => {
                 </div>
 
                 <div className="text-xs text-muted-foreground text-center pt-3 border-t border-border">
-                  Taxa de {(TAXA * 100).toFixed(2)}% já descontada • Câmbio BRL/USD: R$ {taxaCambioAtual.toFixed(2)}
+                  Taxa de {(TAXA * 100).toFixed(2)}% já descontada • Câmbio BRL/USDT: R$ {taxaCambioAtual.toFixed(2)}
                 </div>
               </div>}
           </CardContent>
