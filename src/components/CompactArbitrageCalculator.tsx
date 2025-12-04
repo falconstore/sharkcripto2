@@ -24,7 +24,7 @@ interface CompactArbitrageCalculatorProps {
 const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps }: CompactArbitrageCalculatorProps) => {
   const { opportunities } = useOpportunities();
   const { rate: taxaCambioAtual } = useExchangeRate();
-  const { updateCalculator, calculators, profitThreshold, soundEnabled } = useCalculatorStore();
+  const { updateCalculator, calculators, soundEnabled } = useCalculatorStore();
   const { addOperation } = useBankroll();
 
   // Get stored calculator data
@@ -41,6 +41,9 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
   const [entradaFuturo, setEntradaFuturo] = useState<string>(storedCalc?.entradaFuturo || '');
   const [fechamentoSpot, setFechamentoSpot] = useState<string>(storedCalc?.fechamentoSpot || '');
   const [fechamentoFuturo, setFechamentoFuturo] = useState<string>(storedCalc?.fechamentoFuturo || '');
+  const [thresholdInput, setThresholdInput] = useState<string>(
+    (storedCalc?.profitThresholdPercent ?? 0.1).toString()
+  );
 
   // Estados de resultado
   const [lucroUSD, setLucroUSD] = useState<number>(0);
@@ -48,10 +51,13 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
   const [varTotal, setVarTotal] = useState<number>(0);
   
   // Sound notification ref
-  const lastNotifiedProfit = useRef<number>(0);
+  const lastNotifiedVarTotal = useRef<number>(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   
   const TAXA = 0.001;
+
+  // Get individual threshold
+  const profitThresholdPercent = storedCalc?.profitThresholdPercent ?? 0.1;
 
   // Persist state changes to store
   useEffect(() => {
@@ -63,16 +69,17 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
       fechamentoSpot,
       fechamentoFuturo,
       trackingActive,
+      currentProfit: lucroUSD,
     });
-  }, [selectedPair, valorInvestido, entradaSpot, entradaFuturo, fechamentoSpot, fechamentoFuturo, trackingActive, id, updateCalculator]);
+  }, [selectedPair, valorInvestido, entradaSpot, entradaFuturo, fechamentoSpot, fechamentoFuturo, trackingActive, lucroUSD, id, updateCalculator]);
 
-  // Sound notification for profit
+  // Sound notification for profit (based on % threshold)
   useEffect(() => {
-    if (soundEnabled && lucroUSD > 0 && lucroUSD >= profitThreshold && lucroUSD !== lastNotifiedProfit.current) {
+    if (soundEnabled && varTotal > 0 && varTotal >= profitThresholdPercent && varTotal !== lastNotifiedVarTotal.current) {
       playProfitSound();
-      lastNotifiedProfit.current = lucroUSD;
+      lastNotifiedVarTotal.current = varTotal;
     }
-  }, [lucroUSD, profitThreshold, soundEnabled]);
+  }, [varTotal, profitThresholdPercent, soundEnabled]);
 
   const playProfitSound = () => {
     try {
@@ -168,6 +175,14 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
     toast.success('Operação salva na banca!');
   };
 
+  const handleThresholdChange = (value: string) => {
+    setThresholdInput(value);
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue >= 0) {
+      updateCalculator(id, { profitThresholdPercent: numValue });
+    }
+  };
+
   const spreadEntrada = useMemo(() => {
     if (!entradaSpot || !entradaFuturo) return 0;
     const sE = parseFloat(entradaSpot);
@@ -175,7 +190,7 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
     return (fE / sE - 1) * 100;
   }, [entradaSpot, entradaFuturo]);
 
-  const showProfitAlert = lucroUSD > 0 && lucroUSD >= profitThreshold;
+  const showProfitAlert = varTotal > 0 && varTotal >= profitThresholdPercent;
 
   return (
     <Card className={`bg-gradient-card border-border/50 hover:border-primary/30 transition-all ${isDragging ? 'opacity-50 scale-105' : ''}`}>
@@ -209,7 +224,7 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
             {showProfitAlert && (
               <Badge variant="outline" className="bg-gold/20 text-gold text-[10px] animate-pulse">
                 <Bell className="w-2.5 h-2.5 mr-0.5" />
-                $
+                %
               </Badge>
             )}
           </div>
@@ -282,25 +297,42 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
           </div>
         </div>
 
-        {/* Toggle de Tracking */}
+        {/* Toggle de Tracking + Threshold Individual */}
         {selectedPair && (
-          <div className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-accent/20">
-            <div className="flex items-center gap-1">
-              {trackingActive ? (
-                <Play className="w-3 h-3 text-profit" />
-              ) : (
-                <Pause className="w-3 h-3 text-muted-foreground" />
-              )}
-              <Label htmlFor={`tracking-${id}`} className="text-[10px] cursor-pointer">
-                Auto tracking
-              </Label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-accent/20">
+              <div className="flex items-center gap-1">
+                {trackingActive ? (
+                  <Play className="w-3 h-3 text-profit" />
+                ) : (
+                  <Pause className="w-3 h-3 text-muted-foreground" />
+                )}
+                <Label htmlFor={`tracking-${id}`} className="text-[10px] cursor-pointer">
+                  Auto tracking
+                </Label>
+              </div>
+              <Switch
+                id={`tracking-${id}`}
+                checked={trackingActive}
+                onCheckedChange={setTrackingActive}
+                className="scale-75"
+              />
             </div>
-            <Switch
-              id={`tracking-${id}`}
-              checked={trackingActive}
-              onCheckedChange={setTrackingActive}
-              className="scale-75"
-            />
+            
+            {/* Threshold Individual */}
+            <div className="flex items-center gap-2 p-2 rounded-md border border-border/50 bg-accent/20">
+              <Bell className="w-3 h-3 text-muted-foreground" />
+              <Label className="text-[10px]">Alerta:</Label>
+              <Input
+                type="number"
+                value={thresholdInput}
+                onChange={(e) => handleThresholdChange(e.target.value)}
+                className="h-6 w-16 text-xs font-mono"
+                step="0.01"
+                min="0"
+              />
+              <span className="text-[10px] text-muted-foreground">%</span>
+            </div>
           </div>
         )}
 
