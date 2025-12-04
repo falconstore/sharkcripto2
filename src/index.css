@@ -2,123 +2,124 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
-    /* Azul Confiança - Tema Claro */
-    --background: 0 0% 100%;
-    --foreground: 220 60% 15%;
+    /* Background & Foreground */
+    --background: 40 30% 98%;
+    --foreground: 30 20% 10%;
 
+    /* Cards */
     --card: 0 0% 100%;
-    --card-foreground: 220 60% 15%;
+    --card-foreground: 30 20% 10%;
 
+    /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 220 60% 15%;
+    --popover-foreground: 30 20% 10%;
 
-    /* Azul Escuro Primário */
-    --primary: 220 60% 20%;
+    /* Primary: DOURADO */
+    --primary: 38 92% 50%;
     --primary-foreground: 0 0% 100%;
 
-    /* Azul Claro Secundário */
-    --secondary: 210 50% 92%;
-    --secondary-foreground: 220 60% 20%;
+    /* Secondary: Cinza quente */
+    --secondary: 38 20% 92%;
+    --secondary-foreground: 30 20% 15%;
 
-    --muted: 210 50% 95%;
-    --muted-foreground: 220 20% 50%;
+    /* Muted */
+    --muted: 38 15% 94%;
+    --muted-foreground: 30 10% 45%;
 
-    --accent: 210 50% 90%;
-    --accent-foreground: 220 60% 20%;
+    /* Accent: LARANJA */
+    --accent: 24 100% 50%;
+    --accent-foreground: 0 0% 100%;
 
-    /* Dourado/Mostarda para Destaques */
-    --gold: 45 95% 55%;
-    --gold-foreground: 220 60% 15%;
-
-    /* Alerta de Lucro */
-    --profit: 142 76% 36%;
-    --profit-foreground: 0 0% 100%;
-
-    /* Warning/Aviso */
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-
-    --destructive: 0 84.2% 60.2%;
+    /* Destructive */
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 30% 88%;
-    --input: 210 30% 88%;
-    --ring: 220 60% 20%;
+    /* Borders & Inputs */
+    --border: 38 30% 88%;
+    --input: 38 30% 88%;
+    --ring: 38 92% 50%;
 
     --radius: 0.75rem;
 
-    /* Gradientes */
-    --gradient-primary: linear-gradient(135deg, hsl(220, 60%, 20%), hsl(220, 80%, 35%));
-    --gradient-gold: linear-gradient(135deg, hsl(45, 95%, 55%), hsl(45, 85%, 65%));
-    --gradient-card: linear-gradient(180deg, hsl(0, 0%, 100%), hsl(210, 50%, 98%));
+    /* Sidebar */
+    --sidebar-background: 40 25% 97%;
+    --sidebar-foreground: 30 20% 20%;
+    --sidebar-primary: 38 92% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 38 50% 92%;
+    --sidebar-accent-foreground: 38 92% 35%;
+    --sidebar-border: 38 25% 90%;
+    --sidebar-ring: 38 92% 50%;
 
-    /* Sombras */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    --shadow-gold: 0 0 20px hsl(45 95% 55% / 0.3);
+    /* Status Colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
 
-    /* Transições */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Legacy colors for compatibility */
+    --gold: 38 92% 50%;
+    --gold-foreground: 0 0% 100%;
+    --profit: 142 76% 36%;
+    --profit-foreground: 0 0% 100%;
   }
 
   .dark {
-    /* Dark Mode */
-    --background: 220 25% 8%;
-    --foreground: 210 30% 95%;
+    --background: 0 0% 4%;
+    --foreground: 45 30% 90%;
 
-    --card: 220 25% 12%;
-    --card-foreground: 210 30% 95%;
+    --card: 0 0% 7%;
+    --card-foreground: 45 30% 90%;
 
-    --popover: 220 25% 10%;
-    --popover-foreground: 210 30% 95%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 45 30% 90%;
 
-    --primary: 220 60% 60%;
-    --primary-foreground: 220 25% 8%;
+    --primary: 38 92% 50%;
+    --primary-foreground: 0 0% 0%;
 
-    --secondary: 220 20% 18%;
-    --secondary-foreground: 210 30% 95%;
+    --secondary: 30 15% 15%;
+    --secondary-foreground: 45 30% 90%;
 
-    --muted: 220 20% 15%;
-    --muted-foreground: 220 15% 60%;
+    --muted: 30 10% 15%;
+    --muted-foreground: 38 20% 55%;
 
-    --accent: 220 20% 20%;
-    --accent-foreground: 210 30% 95%;
+    --accent: 24 100% 50%;
+    --accent-foreground: 0 0% 100%;
 
-    /* Dourado ainda mais vibrante no dark */
-    --gold: 45 100% 60%;
-    --gold-foreground: 220 25% 8%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
 
-    --profit: 142 76% 45%;
-    --profit-foreground: 220 25% 8%;
+    --border: 38 30% 18%;
+    --input: 38 20% 18%;
+    --ring: 38 92% 50%;
 
-    --warning: 38 92% 55%;
-    --warning-foreground: 220 25% 8%;
+    /* Sidebar Dark */
+    --sidebar-background: 0 0% 5%;
+    --sidebar-foreground: 45 30% 85%;
+    --sidebar-primary: 38 92% 50%;
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 38 40% 15%;
+    --sidebar-accent-foreground: 38 92% 60%;
+    --sidebar-border: 38 20% 15%;
+    --sidebar-ring: 38 92% 50%;
 
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 210 30% 95%;
+    /* Status Colors */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
 
-    --border: 220 20% 20%;
-    --input: 220 20% 18%;
-    --ring: 220 60% 60%;
-
-    /* Gradientes Dark Mode */
-    --gradient-primary: linear-gradient(135deg, hsl(220, 25%, 12%), hsl(220, 30%, 18%));
-    --gradient-gold: linear-gradient(135deg, hsl(45, 100%, 60%), hsl(45, 90%, 70%));
-    --gradient-card: linear-gradient(180deg, hsl(220, 25%, 12%), hsl(220, 25%, 10%));
-
-    /* Sombras mais intensas */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
-    --shadow-gold: 0 0 30px hsl(45 100% 60% / 0.4);
+    /* Legacy colors for compatibility */
+    --gold: 38 92% 50%;
+    --gold-foreground: 0 0% 0%;
+    --profit: 142 70% 45%;
+    --profit-foreground: 0 0% 100%;
   }
 }
 
@@ -129,114 +130,248 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: "liga" 1, "calt" 1;
   }
 }
 
 @layer utilities {
-  /* Animações de Micro-interações */
-  .animate-pulse-gold {
-    animation: pulse-gold 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  /* Glow Effects */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(38 92% 50% / 0.4);
   }
 
-  @keyframes pulse-gold {
-    0%, 100% {
-      opacity: 1;
-      box-shadow: 0 0 0 0 hsl(var(--gold) / 0.7);
-    }
-    50% {
-      opacity: 0.8;
-      box-shadow: 0 0 0 10px hsl(var(--gold) / 0);
-    }
+  .glow-primary-hover:hover {
+    box-shadow: 0 0 30px hsl(38 92% 50% / 0.5);
   }
 
-  .animate-slide-up {
-    animation: slide-up 0.3s ease-out;
+  .glow-accent {
+    box-shadow: 0 0 20px hsl(24 100% 50% / 0.4);
   }
 
-  @keyframes slide-up {
-    from {
-      transform: translateY(10px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
+  /* Text Gradient Dourado */
+  .text-gradient-gold {
+    background: linear-gradient(135deg, hsl(38 92% 50%), hsl(24 100% 50%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
-  .animate-scale-in {
-    animation: scale-in 0.2s ease-out;
+  /* Background Gradient */
+  .bg-gradient-gold {
+    background: linear-gradient(135deg, hsl(38 92% 50%), hsl(24 100% 50%));
   }
 
-  @keyframes scale-in {
-    from {
-      transform: scale(0.95);
-      opacity: 0;
-    }
-    to {
-      transform: scale(1);
-      opacity: 1;
-    }
+  .bg-gradient-gold-subtle {
+    background: linear-gradient(135deg, hsl(38 92% 50% / 0.1), hsl(24 100% 50% / 0.1));
   }
 
-  /* Hover Effects */
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, hsl(0 0% 4%), hsl(30 10% 8%));
+  }
+
+  /* Glassmorphism */
+  .glass {
+    backdrop-filter: blur(12px);
+    background: hsl(var(--card) / 0.8);
+  }
+
+  .glass-strong {
+    backdrop-filter: blur(20px);
+    background: hsl(var(--card) / 0.9);
+  }
+
+  /* Legacy utility classes */
   .hover-lift {
-    transition: var(--transition-smooth);
+    @apply transition-transform duration-300;
   }
 
   .hover-lift:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
+    @apply -translate-y-1;
   }
 
   .hover-gold {
-    transition: var(--transition-fast);
+    @apply transition-all duration-200;
   }
 
   .hover-gold:hover {
     color: hsl(var(--gold));
-    box-shadow: var(--shadow-gold);
+    box-shadow: 0 0 20px hsl(38 92% 50% / 0.3);
   }
+}
 
-  /* Flash de atualização de preço */
-  @keyframes flash-green {
-    0%, 100% { background-color: transparent; }
-    50% { background-color: hsl(142, 76%, 36%, 0.2); }
+/* Scrollbar customizada */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, hsl(38 92% 50%), hsl(24 100% 50%));
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, hsl(38 92% 55%), hsl(24 100% 55%));
+}
+
+::selection {
+  background: hsl(38 92% 50% / 0.3);
+  color: hsl(var(--foreground));
+}
+
+/* Animations */
+@keyframes pulse-gold {
+  0%, 100% {
+    opacity: 1;
   }
-
-  @keyframes flash-red {
-    0%, 100% { background-color: transparent; }
-    50% { background-color: hsl(0, 84%, 60%, 0.2); }
+  50% {
+    opacity: 0.7;
   }
+}
 
-  @keyframes flash-gold {
-    0%, 100% { background-color: transparent; }
-    50% { background-color: hsl(45, 95%, 55%, 0.2); }
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px hsl(38 92% 50% / 0.5), 0 0 20px hsl(38 92% 50% / 0.3);
   }
-
-  .flash-green {
-    animation: flash-green 0.6s ease-out;
+  50% {
+    box-shadow: 0 0 20px hsl(38 92% 50% / 0.8), 0 0 40px hsl(38 92% 50% / 0.5);
   }
+}
 
-  .flash-red {
-    animation: flash-red 0.6s ease-out;
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
   }
-
-  .flash-gold {
-    animation: flash-gold 0.6s ease-out;
+  100% {
+    background-position: 200% 0;
   }
+}
 
-  /* Gradientes utilitários */
-  .bg-gradient-primary {
-    background: var(--gradient-primary);
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
   }
-
-  .bg-gradient-gold {
-    background: var(--gradient-gold);
+  50% {
+    transform: translateY(-5px);
   }
+}
 
-  .bg-gradient-card {
-    background: var(--gradient-card);
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes glow-border {
+  0%, 100% {
+    border-color: hsl(38 92% 50% / 0.5);
+  }
+  50% {
+    border-color: hsl(38 92% 50% / 1);
+  }
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-pulse-gold {
+  animation: pulse-gold 2s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+  background-size: 200% 100%;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+.animate-glow-border {
+  animation: glow-border 2s ease-in-out infinite;
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+}
+
+/* Flash animations for price updates */
+.flash-green {
+  animation: flash-green 0.5s ease-out;
+}
+
+.flash-red {
+  animation: flash-red 0.5s ease-out;
+}
+
+@keyframes flash-green {
+  0% {
+    background-color: hsl(142 76% 36% / 0.3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes flash-red {
+  0% {
+    background-color: hsl(0 84% 60% / 0.3);
+  }
+  100% {
+    background-color: transparent;
   }
 }

@@ -5,12 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrendingUp, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import { SharkCriptoLogo } from '@/components/SharkCriptoLogo';
+import { StarBackground } from '@/components/StarBackground';
+import { TypewriterText } from '@/components/TypewriterText';
+
 const Auth = () => {
-  const {
-    signIn,
-    signUp
-  } = useAuth();
+  const { signIn, signUp } = useAuth();
   const [loading, setLoading] = useState(false);
   const [loginData, setLoginData] = useState({
     email: '',
@@ -22,6 +23,7 @@ const Auth = () => {
     fullName: '',
     confirmPassword: ''
   });
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -31,6 +33,7 @@ const Auth = () => {
       setLoading(false);
     }
   };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (signupData.password !== signupData.confirmPassword) {
@@ -44,19 +47,25 @@ const Auth = () => {
       setLoading(false);
     }
   };
-  return <div className="min-h-screen flex items-center justify-center bg-gradient-primary p-4">
-      <div className="w-full max-w-md animate-scale-in">
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background relative p-4">
+      <StarBackground />
+      
+      <div className="w-full max-w-md animate-scale-in relative z-10">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <TrendingUp className="w-10 h-10 text-gold" />
-            <h1 className="text-3xl font-bold text-white">Monitor Shark Cripto</h1>
+          <div className="flex justify-center mb-4">
+            <SharkCriptoLogo size={64} showText={false} />
           </div>
-          <p className="text-primary-foreground">
+          <h1 className="text-3xl font-bold text-gradient-gold mb-2">
+            <TypewriterText text="Shark Cripto" speed={80} />
+          </h1>
+          <p className="text-muted-foreground">
             Monitore oportunidades de arbitragem em tempo real
           </p>
         </div>
 
-        <Card className="bg-gradient-card border-border/50 shadow-lg">
+        <Card className="border-primary/20 bg-card/80 backdrop-blur-md">
           <CardHeader>
             <CardTitle>Bem-vindo</CardTitle>
             <CardDescription>Entre ou crie sua conta para acessar o Monitor</CardDescription>
@@ -72,19 +81,33 @@ const Auth = () => {
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="login-email">Email</Label>
-                    <Input id="login-email" type="email" placeholder="seu@email.com" value={loginData.email} onChange={e => setLoginData({
-                    ...loginData,
-                    email: e.target.value
-                  })} required />
+                    <Input 
+                      id="login-email" 
+                      type="email" 
+                      placeholder="seu@email.com" 
+                      value={loginData.email} 
+                      onChange={e => setLoginData({
+                        ...loginData,
+                        email: e.target.value
+                      })} 
+                      required 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Senha</Label>
-                    <Input id="login-password" type="password" placeholder="••••••••" value={loginData.password} onChange={e => setLoginData({
-                    ...loginData,
-                    password: e.target.value
-                  })} required />
+                    <Input 
+                      id="login-password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={loginData.password} 
+                      onChange={e => setLoginData({
+                        ...loginData,
+                        password: e.target.value
+                      })} 
+                      required 
+                    />
                   </div>
-                  <Button type="submit" className="w-full bg-gold hover:bg-gold/90 text-gold-foreground" disabled={loading}>
+                  <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? 'Entrando...' : 'Entrar'}
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </Button>
@@ -95,33 +118,63 @@ const Auth = () => {
                 <form onSubmit={handleSignup} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Nome Completo</Label>
-                    <Input id="signup-name" type="text" placeholder="Seu nome" value={signupData.fullName} onChange={e => setSignupData({
-                    ...signupData,
-                    fullName: e.target.value
-                  })} required />
+                    <Input 
+                      id="signup-name" 
+                      type="text" 
+                      placeholder="Seu nome" 
+                      value={signupData.fullName} 
+                      onChange={e => setSignupData({
+                        ...signupData,
+                        fullName: e.target.value
+                      })} 
+                      required 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
-                    <Input id="signup-email" type="email" placeholder="seu@email.com" value={signupData.email} onChange={e => setSignupData({
-                    ...signupData,
-                    email: e.target.value
-                  })} required />
+                    <Input 
+                      id="signup-email" 
+                      type="email" 
+                      placeholder="seu@email.com" 
+                      value={signupData.email} 
+                      onChange={e => setSignupData({
+                        ...signupData,
+                        email: e.target.value
+                      })} 
+                      required 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Senha</Label>
-                    <Input id="signup-password" type="password" placeholder="••••••••" value={signupData.password} onChange={e => setSignupData({
-                    ...signupData,
-                    password: e.target.value
-                  })} required minLength={6} />
+                    <Input 
+                      id="signup-password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={signupData.password} 
+                      onChange={e => setSignupData({
+                        ...signupData,
+                        password: e.target.value
+                      })} 
+                      required 
+                      minLength={6} 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-confirm">Confirmar Senha</Label>
-                    <Input id="signup-confirm" type="password" placeholder="••••••••" value={signupData.confirmPassword} onChange={e => setSignupData({
-                    ...signupData,
-                    confirmPassword: e.target.value
-                  })} required minLength={6} />
+                    <Input 
+                      id="signup-confirm" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={signupData.confirmPassword} 
+                      onChange={e => setSignupData({
+                        ...signupData,
+                        confirmPassword: e.target.value
+                      })} 
+                      required 
+                      minLength={6} 
+                    />
                   </div>
-                  <Button type="submit" className="w-full bg-gold hover:bg-gold/90 text-gold-foreground" disabled={loading}>
+                  <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? 'Criando conta...' : 'Criar Conta'}
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </Button>
@@ -131,6 +184,8 @@ const Auth = () => {
           </CardContent>
         </Card>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default Auth;

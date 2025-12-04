@@ -10,6 +10,9 @@ import MonitoringStatus from '@/components/MonitoringStatus';
 import StartMonitoringButton from '@/components/StartMonitoringButton';
 import OpportunitiesTable from '@/components/OpportunitiesTable';
 import ImprovedArbitrageCalculator from '@/components/ImprovedArbitrageCalculator';
+import { LoadingScreen } from '@/components/LoadingScreen';
+import { StarBackground } from '@/components/StarBackground';
+import { PageTransition } from '@/components/PageTransition';
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -34,14 +37,7 @@ const Dashboard = () => {
   }, [user, loading, navigate]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mx-auto mb-4" />
-          <p className="text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!user) {
@@ -49,25 +45,28 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      <StarBackground />
       <DashboardHeader />
       
-      <main className="container mx-auto px-4 py-8 space-y-8 animate-slide-up">
-        {/* Botões de Ação */}
-        <div className="flex justify-center gap-3">
-          <StartMonitoringButton />
-          <ImprovedArbitrageCalculator />
-        </div>
+      <PageTransition>
+        <main className="container mx-auto px-4 py-8 space-y-8 relative z-10">
+          {/* Botões de Ação */}
+          <div className="flex justify-center gap-3">
+            <StartMonitoringButton />
+            <ImprovedArbitrageCalculator />
+          </div>
 
-        {/* Status do Monitoramento */}
-        <MonitoringStatus />
+          {/* Status do Monitoramento */}
+          <MonitoringStatus />
 
-        {/* Stats Cards */}
-        <DashboardStats />
+          {/* Stats Cards */}
+          <DashboardStats />
 
-        {/* Tabela de Oportunidades */}
-        <OpportunitiesTable />
-      </main>
+          {/* Tabela de Oportunidades */}
+          <OpportunitiesTable />
+        </main>
+      </PageTransition>
     </div>
   );
 };
