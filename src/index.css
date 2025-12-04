@@ -40,6 +40,10 @@ All colors MUST be HSL.
     --profit: 142 76% 36%;
     --profit-foreground: 0 0% 100%;
 
+    /* Warning/Aviso */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
@@ -94,6 +98,9 @@ All colors MUST be HSL.
 
     --profit: 142 76% 45%;
     --profit-foreground: 220 25% 8%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 220 25% 8%;
 
     --destructive: 0 62.8% 50%;
     --destructive-foreground: 210 30% 95%;

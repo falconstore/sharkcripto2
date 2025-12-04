@@ -27,7 +27,10 @@ import {
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useCrossings } from '@/hooks/useCrossings';
+import { useCoinListings } from '@/hooks/useCoinListings';
 import CrossingsHistoryModal from './CrossingsHistoryModal';
+import NewCoinBadge from './NewCoinBadge';
+import DelistWarning from './DelistWarning';
 import { toast } from 'sonner';
 
 type SortField = 'pair_symbol' | 'spread_net_percent_entrada' | 'spread_net_percent_saida' | 'spot_volume_24h' | 'futures_volume_24h';
@@ -42,6 +45,7 @@ const OpportunitiesTable = () => {
   const { opportunities } = useOpportunities();
   const { favorites, blacklist, toggleFavorite, toggleBlacklist } = usePreferences();
   const { crossingsCount } = useCrossings();
+  const { isNewCoin, getDelistingInfo } = useCoinListings();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [sortConfigs, setSortConfigs] = useState<SortConfig[]>([
@@ -563,7 +567,15 @@ const OpportunitiesTable = () => {
                         </Button>
                       </TableCell>
                       <TableCell className="font-mono font-semibold">
-                        {opp.pair_symbol}
+                        <div className="flex items-center gap-2">
+                          {getDelistingInfo(opp.pair_symbol) && (
+                            <DelistWarning scheduledDate={getDelistingInfo(opp.pair_symbol)!.scheduled_date} />
+                          )}
+                          <span>{opp.pair_symbol}</span>
+                          {isNewCoin(opp.pair_symbol) && (
+                            <NewCoinBadge />
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge 
