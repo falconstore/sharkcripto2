@@ -261,7 +261,7 @@ const CompactArbitrageCalculator = ({
 
         {/* Toggle de Tracking + Threshold Individual */}
         {selectedPair && <div className="space-y-2">
-            <div className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-accent/20 mr-[250px]">
+            <div className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-accent/20 mr-0">
               <div className="flex items-center gap-1">
                 {trackingActive ? <Play className="w-3 h-3 text-profit" /> : <Pause className="w-3 h-3 text-muted-foreground" />}
                 <Label htmlFor={`tracking-${id}`} className="text-[10px] cursor-pointer">
@@ -272,7 +272,7 @@ const CompactArbitrageCalculator = ({
             </div>
             
             {/* Threshold Individual */}
-            <div className="gap-2 p-2 rounded-md border border-border/50 bg-accent/20 flex items-center justify-start mr-[250px] pr-[5px]">
+            <div className="gap-2 p-2 rounded-md border border-border/50 bg-accent/20 flex items-center justify-start pr-[5px] mr-0">
               <Bell className="w-3 h-3 text-muted-foreground" />
               <Label className="text-[10px]">Alerta:</Label>
               <Input type="number" value={thresholdInput} onChange={e => handleThresholdChange(e.target.value)} step="0.01" min="0" className="h-6 w-16 text-xs font-mono" />
