@@ -98,9 +98,23 @@ export function useUserManagement() {
 
   const promoteToAdmin = async (userId: string) => {
     try {
+      // Verificar se já é admin
+      const { data: existing } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .maybeSingle();
+
+      if (existing) {
+        toast({ title: 'Info', description: 'Usuário já é administrador' });
+        return;
+      }
+
+      // Usar INSERT ao invés de UPSERT
       const { error } = await supabase
         .from('user_roles')
-        .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id' });
+        .insert({ user_id: userId, role: 'admin' });
 
       if (error) throw error;
 

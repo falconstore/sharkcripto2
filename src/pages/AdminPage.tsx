@@ -19,10 +19,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Users, UserCheck, UserX, Clock, CheckCircle, XCircle, Rocket, AlertTriangle, Plus, Edit2, Trash2, Calendar, Coins, Shield, ShieldOff } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type FilterStatus = 'all' | 'pending' | 'approved' | 'blocked';
+
+interface AdminActionDialog {
+  open: boolean;
+  userId: string;
+  userName: string;
+  action: 'promote' | 'demote';
+}
 
 const AdminPage = () => {
   const { user, loading: authLoading } = useAuth();
@@ -32,6 +40,9 @@ const AdminPage = () => {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [activeTab, setActiveTab] = useState('users');
+
+  // Admin action confirmation dialog
+  const [adminActionDialog, setAdminActionDialog] = useState<AdminActionDialog | null>(null);
 
   // Listing form state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -43,6 +54,27 @@ const AdminPage = () => {
     scheduled_date: '',
     scheduled_time: '',
   });
+
+  const handleConfirmAdminAction = async () => {
+    if (!adminActionDialog) return;
+    
+    if (adminActionDialog.action === 'promote') {
+      await promoteToAdmin(adminActionDialog.userId);
+    } else {
+      await demoteFromAdmin(adminActionDialog.userId);
+    }
+    
+    setAdminActionDialog(null);
+  };
+
+  const openAdminActionDialog = (userProfile: UserProfile, action: 'promote' | 'demote') => {
+    setAdminActionDialog({
+      open: true,
+      userId: userProfile.id,
+      userName: userProfile.full_name || userProfile.email || 'Usuário',
+      action,
+    });
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -247,6 +279,9 @@ const AdminPage = () => {
                           </div>
                           
                           <div className="flex items-center gap-3">
+                            {userProfile.id === user?.id && (
+                              <Badge variant="outline" className="text-xs">Você</Badge>
+                            )}
                             {userProfile.isAdmin && (
                               <Badge className="bg-gold/20 text-gold border-gold/30">
                                 <Shield className="w-3 h-3 mr-1" />
@@ -256,28 +291,30 @@ const AdminPage = () => {
                             {getStatusBadge(userProfile.status)}
                             
                             <div className="flex gap-2">
-                              {/* Toggle Admin */}
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className={userProfile.isAdmin 
-                                      ? "text-gold border-gold hover:bg-gold hover:text-gold-foreground" 
-                                      : "text-muted-foreground border-border hover:bg-accent"
-                                    }
-                                    onClick={() => userProfile.isAdmin 
-                                      ? demoteFromAdmin(userProfile.id) 
-                                      : promoteToAdmin(userProfile.id)
-                                    }
-                                  >
-                                    {userProfile.isAdmin ? <ShieldOff className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  {userProfile.isAdmin ? 'Remover Admin' : 'Tornar Admin'}
-                                </TooltipContent>
-                              </Tooltip>
+                              {/* Toggle Admin - não permite remover a si mesmo */}
+                              {userProfile.id !== user?.id && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className={userProfile.isAdmin 
+                                        ? "text-gold border-gold hover:bg-gold hover:text-gold-foreground" 
+                                        : "text-muted-foreground border-border hover:bg-accent"
+                                      }
+                                      onClick={() => openAdminActionDialog(
+                                        userProfile, 
+                                        userProfile.isAdmin ? 'demote' : 'promote'
+                                      )}
+                                    >
+                                      {userProfile.isAdmin ? <ShieldOff className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {userProfile.isAdmin ? 'Remover Admin' : 'Tornar Admin'}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
                               
                               {userProfile.status !== 'approved' && (
                                 <Button
@@ -289,7 +326,7 @@ const AdminPage = () => {
                                   <CheckCircle className="h-4 w-4" />
                                 </Button>
                               )}
-                              {userProfile.status !== 'blocked' && (
+                              {userProfile.status !== 'blocked' && userProfile.id !== user?.id && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -307,6 +344,39 @@ const AdminPage = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* AlertDialog para confirmação de ação de admin */}
+              <AlertDialog 
+                open={adminActionDialog?.open ?? false} 
+                onOpenChange={(open) => !open && setAdminActionDialog(null)}
+              >
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {adminActionDialog?.action === 'promote' 
+                        ? 'Promover a Administrador' 
+                        : 'Remover Administrador'}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {adminActionDialog?.action === 'promote'
+                        ? `Tem certeza que deseja tornar "${adminActionDialog?.userName}" um administrador? Ele terá acesso total ao sistema de gerenciamento.`
+                        : `Tem certeza que deseja remover as permissões de administrador de "${adminActionDialog?.userName}"?`}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={handleConfirmAdminAction}
+                      className={adminActionDialog?.action === 'demote' 
+                        ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' 
+                        : 'bg-primary hover:bg-primary/90'
+                      }
+                    >
+                      Confirmar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </TabsContent>
 
             {/* Listings Tab */}
