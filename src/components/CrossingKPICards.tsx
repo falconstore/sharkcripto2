@@ -1,7 +1,7 @@
 import { KPIData } from '@/hooks/useStatistics';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, Trophy, Calendar, Target } from 'lucide-react';
+import { TrendingUp, Trophy, Clock, Target } from 'lucide-react';
 
 interface CrossingKPICardsProps {
   data: KPIData;
@@ -26,10 +26,16 @@ const CrossingKPICards = ({ data, loading }: CrossingKPICardsProps) => {
     );
   }
 
+  // Formatar spread com limite máximo de 10%
+  const formatSpread = (spread: number) => {
+    const limitedSpread = Math.min(spread, 10);
+    return `+${limitedSpread.toFixed(4)}%`;
+  };
+
   const cards = [
     {
       title: 'Total de Cruzamentos',
-      value: data.totalCrossings,
+      value: data.totalCrossings.toLocaleString('pt-BR'),
       icon: TrendingUp,
       color: 'text-blue-500',
     },
@@ -40,14 +46,14 @@ const CrossingKPICards = ({ data, loading }: CrossingKPICardsProps) => {
       color: 'text-gold',
     },
     {
-      title: 'Média por Dia',
-      value: data.avgCrossingsPerDay.toFixed(1),
-      icon: Calendar,
+      title: 'Média por Hora',
+      value: data.avgCrossingsPerHour.toFixed(1),
+      icon: Clock,
       color: 'text-green-500',
     },
     {
       title: 'Melhor % Saída',
-      value: `+${data.bestSpread.toFixed(4)}%`,
+      value: formatSpread(data.bestSpread),
       icon: Target,
       color: 'text-purple-500',
     },

@@ -28,6 +28,9 @@ interface FuturesTicker {
 const SPOT_TAKER_FEE = 0.10;
 const FUTURES_TAKER_FEE = 0.02;
 
+// Spread máximo válido para registrar cruzamento (evitar dados absurdos)
+const MAX_VALID_SPREAD = 10;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -43,8 +46,13 @@ Deno.serve(async (req) => {
     // Mapa para rastrear último cruzamento de cada moeda (evitar duplicatas)
     const lastCrossings = new Map<string, number>();
 
-    // Função auxiliar para registrar cruzamento
+    // Função auxiliar para registrar cruzamento (VALIDADA)
     const registerCrossing = async (pairSymbol: string, spreadNetPercentSaida: number) => {
+      // VALIDAÇÃO: Só registrar spreads válidos (0% a 10%)
+      if (spreadNetPercentSaida <= 0 || spreadNetPercentSaida > MAX_VALID_SPREAD) {
+        return;
+      }
+
       const now = Date.now();
       const lastCrossing = lastCrossings.get(pairSymbol) || 0;
       
@@ -89,31 +97,11 @@ Deno.serve(async (req) => {
         
         const data: SpotTicker[] = await response.json();
         const usdtPairs = new Map<string, SpotTicker>();
-        const targetPairs = ['RAIL', 'BAGWORK', 'ORE', 'BOBBSC'];
-        const foundTargets: string[] = [];
         
         data.forEach(ticker => {
           if (ticker.symbol.endsWith('USDT')) {
             const baseSymbol = normalizeSymbol(ticker.symbol);
             usdtPairs.set(baseSymbol, ticker);
-            
-            // Log moedas específicas encontradas no SPOT
-            if (targetPairs.includes(baseSymbol)) {
-              foundTargets.push(baseSymbol);
-              console.log(`✅ SPOT encontrado: ${baseSymbol} (${ticker.symbol}) vol=${ticker.quoteVolume}`);
-            }
-          }
-        });
-        
-        // Verificar quais das moedas alvo NÃO foram encontradas
-        targetPairs.forEach(symbol => {
-          if (!foundTargets.includes(symbol)) {
-            console.log(`❌ ${symbol} NÃO ENCONTRADO no SPOT`);
-            // Buscar símbolos similares
-            const similar = data.filter(t => t.symbol.includes(symbol)).slice(0, 3);
-            if (similar.length > 0) {
-              console.log(`   Símbolos similares: ${similar.map(t => t.symbol).join(', ')}`);
-            }
           }
         });
         
@@ -136,30 +124,12 @@ Deno.serve(async (req) => {
         
         const data: { data: FuturesTicker[] } = await response.json();
         const usdtPairs = new Map<string, FuturesTicker>();
-        const targetPairs = ['RAIL', 'BAGWORK', 'ORE', 'BOBBSC'];
         
         if (data.data && Array.isArray(data.data)) {
-          data.data.forEach((ticker, index) => {
+          data.data.forEach((ticker) => {
             if (ticker.symbol.endsWith('_USDT')) {
               const baseSymbol = normalizeSymbol(ticker.symbol);
               usdtPairs.set(baseSymbol, ticker);
-              
-              // Log moedas específicas encontradas em FUTUROS
-              if (targetPairs.includes(baseSymbol)) {
-                console.log(`✅ FUTUROS encontrado: ${baseSymbol} (${ticker.symbol})`);
-              }
-              
-              // Log dos primeiros 3 pares para debug
-              if (index < 3) {
-                console.log(`Futures ${baseSymbol}: bid1=${ticker.bid1}, ask1=${ticker.ask1}, last=${ticker.lastPrice}`);
-              }
-            }
-          });
-          
-          // Verificar quais das moedas alvo NÃO estão em futuros
-          targetPairs.forEach(symbol => {
-            if (!usdtPairs.has(symbol)) {
-              console.log(`❌ ${symbol} NÃO EXISTE em FUTUROS - impossível arbitragem`);
             }
           });
         }
@@ -183,98 +153,64 @@ Deno.serve(async (req) => {
 
       if (spotTickers.size === 0 || futuresTickers.size === 0) {
         console.log('⚠️ No data fetched, skipping this cycle');
-        return;
+        return [];
       }
 
       let opportunitiesFound = 0;
       let pairsProcessed = 0;
-      let pairsWithValidPrices = 0;
-      let pairsSkippedInvalidPrice = 0;
-      let pairsWithZeroVolume = 0;
+      let crossingsRegistered = 0;
       const opportunities: any[] = [];
-      const skippedPairs: string[] = [];
-      const zeroVolumePairs: string[] = [];
-      const targetPairs = ['RAIL', 'BAGWORK', 'ORE', 'BOBBSC', 'BTC', 'ETH'];
 
-      // Processar cada par que existe em ambos os mercados (symbol agora é o baseSymbol: BTC, ETH, etc)
+      // Processar cada par que existe em ambos os mercados
       for (const [baseSymbol, spotTicker] of spotTickers) {
         const futuresTicker = futuresTickers.get(baseSymbol);
         
         if (!futuresTicker) {
-          if (targetPairs.includes(baseSymbol)) {
-            console.log(`❌ ${baseSymbol} - Não encontrado em futuros`);
-          }
           continue;
         }
         
         pairsProcessed++;
 
-        // Permitir valores 0, NaN, null - converter tudo para número válido
-        const spotBidPrice = parseFloat(spotTicker.bidPrice) || 0.00000001;
-        const spotAskPrice = parseFloat(spotTicker.askPrice) || 0.00000001;
+        // Parse preços com validação
+        const spotBidPrice = parseFloat(spotTicker.bidPrice);
+        const spotAskPrice = parseFloat(spotTicker.askPrice);
         const spotVolume = parseFloat(spotTicker.quoteVolume) || 0;
-        const futuresBidPrice = parseFloat(futuresTicker.bid1) || 0.00000001;
-        const futuresAskPrice = parseFloat(futuresTicker.ask1) || 0.00000001;
+        const futuresBidPrice = parseFloat(futuresTicker.bid1);
+        const futuresAskPrice = parseFloat(futuresTicker.ask1);
         const futuresVolume = parseFloat(futuresTicker.volume24) || 0;
 
-        // Log detalhado para moedas específicas
-        if (targetPairs.includes(baseSymbol)) {
-          console.log(`🔍 ${baseSymbol} - Spot: bid=${spotBidPrice}, ask=${spotAskPrice}, vol=${spotVolume}`);
-          console.log(`🔍 ${baseSymbol} - Fut: bid=${futuresBidPrice}, ask=${futuresAskPrice}, vol=${futuresVolume}`);
-        }
-
-        // Contar pares com volume zero
-        if (spotVolume === 0 && futuresVolume === 0) {
-          pairsWithZeroVolume++;
-          if (zeroVolumePairs.length < 10) {
-            zeroVolumePairs.push(baseSymbol);
-          }
-        }
-
-        // REMOVER VALIDAÇÃO DE PREÇOS - aceitar qualquer valor
-        // Apenas garantir que não são exatamente 0 (usar valor mínimo)
-        const validSpotBid = spotBidPrice > 0 ? spotBidPrice : 0.00000001;
-        const validSpotAsk = spotAskPrice > 0 ? spotAskPrice : 0.00000001;
-        const validFutBid = futuresBidPrice > 0 ? futuresBidPrice : 0.00000001;
-        const validFutAsk = futuresAskPrice > 0 ? futuresAskPrice : 0.00000001;
-
-        pairsWithValidPrices++;
-        
-        if (targetPairs.includes(baseSymbol)) {
-          console.log(`✅ ${baseSymbol} - ADICIONADO às oportunidades (vol=${spotVolume})`);
+        // Validação: ignorar preços inválidos
+        if (!spotBidPrice || !spotAskPrice || !futuresBidPrice || !futuresAskPrice ||
+            spotBidPrice <= 0 || spotAskPrice <= 0 || futuresBidPrice <= 0 || futuresAskPrice <= 0) {
+          continue;
         }
 
         // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry) - ENTRADA
-        // Comprar Spot (pagar askPrice) + Vender Futures/Short (receber bidPrice)
-        // Lucro = (Futures Bid - Spot Ask) / Spot Ask - taxas
-        const spreadGrossLong = ((validFutBid - validSpotAsk) / validSpotAsk) * 100;
+        const spreadGrossLong = ((futuresBidPrice - spotAskPrice) / spotAskPrice) * 100;
         const spreadNetLong = spreadGrossLong - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
         // DIREÇÃO 2: SHORT SPOT + LONG FUTURES (Reverse Cash and Carry) - SAÍDA
-        // Vender Spot (receber bidPrice) + Comprar Futures/Long (pagar askPrice)
-        // Lucro = (Spot Bid - Futures Ask) / Futures Ask - taxas
-        const spreadGrossShort = ((validSpotBid - validFutAsk) / validFutAsk) * 100;
+        const spreadGrossShort = ((spotBidPrice - futuresAskPrice) / futuresAskPrice) * 100;
         const spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
-        // Detectar e registrar cruzamento (quando saída fica positiva)
-        if (spreadNetShort > 0) {
+        // Detectar e registrar cruzamento (apenas spreads válidos 0-10%)
+        if (spreadNetShort > 0 && spreadNetShort <= MAX_VALID_SPREAD) {
           await registerCrossing(baseSymbol, spreadNetShort);
+          crossingsRegistered++;
         }
 
-        // Combinar ambas as direções em uma única oportunidade
         opportunitiesFound++;
         
-        // Capturar funding rate do ticker de futuros
         const fundingRate = parseFloat(futuresTicker.fundingRate) || 0;
 
         const opp = {
           pair_symbol: baseSymbol,
-          spot_bid_price: validSpotBid,
+          spot_bid_price: spotBidPrice,
           spot_volume_24h: spotVolume,
-          futures_ask_price: validFutAsk,
+          futures_ask_price: futuresAskPrice,
           futures_volume_24h: futuresVolume,
           spread_gross_percent: spreadGrossLong,
-          spread_net_percent: spreadNetLong, // Mantém compatibilidade (usa entrada)
+          spread_net_percent: spreadNetLong,
           spread_net_percent_entrada: spreadNetLong,
           spread_net_percent_saida: spreadNetShort,
           spot_taker_fee: SPOT_TAKER_FEE,
@@ -285,25 +221,12 @@ Deno.serve(async (req) => {
         };
         
         opportunities.push(opp);
-
-        if (opportunitiesFound <= 5) {
-          console.log(`💰 ${baseSymbol}: Entrada=${spreadNetLong.toFixed(4)}% | Saída=${spreadNetShort.toFixed(4)}%`);
-        }
       }
 
       console.log(`\n📊 Resumo do processamento:`);
-      console.log(`   - Pares totais processados: ${pairsProcessed}`);
-      console.log(`   - Pares com preços válidos: ${pairsWithValidPrices}`);
-      console.log(`   - Pares com volume ZERO: ${pairsWithZeroVolume}`);
-      console.log(`   - Pares ignorados por preços inválidos: ${pairsSkippedInvalidPrice}`);
-      console.log(`   - Oportunidades criadas (incluindo volume 0): ${opportunitiesFound}`);
-      console.log(`   - Retornando ${opportunities.length} oportunidades`);
-      if (zeroVolumePairs.length > 0) {
-        console.log(`   - Exemplos com volume ZERO: ${zeroVolumePairs.join(', ')}`);
-      }
-      if (skippedPairs.length > 0) {
-        console.log(`   - Exemplos de pares ignorados: ${skippedPairs.join(', ')}`);
-      }
+      console.log(`   - Pares processados: ${pairsProcessed}`);
+      console.log(`   - Oportunidades criadas: ${opportunitiesFound}`);
+      console.log(`   - Cruzamentos válidos registrados: ${crossingsRegistered}`);
       
       return opportunities;
     };

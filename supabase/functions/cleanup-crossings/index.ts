@@ -23,29 +23,46 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Deletar cruzamentos mais antigos que 7 dias
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // 1. Deletar cruzamentos mais antigos que 5 dias
+    const fiveDaysAgo = new Date();
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
 
-    const { data: deletedData, error: deleteError } = await supabase
+    const { data: deletedOldData, error: deleteOldError } = await supabase
       .from('pair_crossings')
       .delete()
-      .lt('timestamp', sevenDaysAgo.toISOString())
+      .lt('timestamp', fiveDaysAgo.toISOString())
       .select();
 
-    if (deleteError) {
-      console.error('Erro ao deletar cruzamentos antigos:', deleteError);
-      throw deleteError;
+    if (deleteOldError) {
+      console.error('Erro ao deletar cruzamentos antigos:', deleteOldError);
     }
 
-    const deletedCount = deletedData?.length || 0;
-    console.log(`✅ Deletados ${deletedCount} cruzamentos antigos (> 7 dias)`);
+    const deletedOldCount = deletedOldData?.length || 0;
+    console.log(`✅ Deletados ${deletedOldCount} cruzamentos antigos (> 5 dias)`);
+
+    // 2. Deletar cruzamentos com spreads inválidos (> 10% ou < 0%)
+    const { data: deletedInvalidData, error: deleteInvalidError } = await supabase
+      .from('pair_crossings')
+      .delete()
+      .or('spread_net_percent_saida.gt.10,spread_net_percent_saida.lt.0')
+      .select();
+
+    if (deleteInvalidError) {
+      console.error('Erro ao deletar cruzamentos inválidos:', deleteInvalidError);
+    }
+
+    const deletedInvalidCount = deletedInvalidData?.length || 0;
+    console.log(`✅ Deletados ${deletedInvalidCount} cruzamentos com spreads inválidos`);
+
+    const totalDeleted = deletedOldCount + deletedInvalidCount;
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        deleted_count: deletedCount,
-        message: `Limpeza concluída: ${deletedCount} registros removidos`
+        deleted_old: deletedOldCount,
+        deleted_invalid: deletedInvalidCount,
+        total_deleted: totalDeleted,
+        message: `Limpeza concluída: ${totalDeleted} registros removidos`
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
