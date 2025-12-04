@@ -19,14 +19,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, UserCheck, UserX, Clock, CheckCircle, XCircle, Rocket, AlertTriangle, Plus, Edit2, Trash2, Calendar, Coins } from 'lucide-react';
+import { Users, UserCheck, UserX, Clock, CheckCircle, XCircle, Rocket, AlertTriangle, Plus, Edit2, Trash2, Calendar, Coins, Shield, ShieldOff } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type FilterStatus = 'all' | 'pending' | 'approved' | 'blocked';
 
 const AdminPage = () => {
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
-  const { users, stats, loading: usersLoading, updateUserStatus } = useUserManagement();
+  const { users, stats, loading: usersLoading, updateUserStatus, promoteToAdmin, demoteFromAdmin } = useUserManagement();
   const { listings, newListings, delistings, addListing, updateListing, deleteListing } = useCoinListings();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterStatus>('all');
@@ -246,9 +247,38 @@ const AdminPage = () => {
                           </div>
                           
                           <div className="flex items-center gap-3">
+                            {userProfile.isAdmin && (
+                              <Badge className="bg-gold/20 text-gold border-gold/30">
+                                <Shield className="w-3 h-3 mr-1" />
+                                Admin
+                              </Badge>
+                            )}
                             {getStatusBadge(userProfile.status)}
                             
                             <div className="flex gap-2">
+                              {/* Toggle Admin */}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className={userProfile.isAdmin 
+                                      ? "text-gold border-gold hover:bg-gold hover:text-gold-foreground" 
+                                      : "text-muted-foreground border-border hover:bg-accent"
+                                    }
+                                    onClick={() => userProfile.isAdmin 
+                                      ? demoteFromAdmin(userProfile.id) 
+                                      : promoteToAdmin(userProfile.id)
+                                    }
+                                  >
+                                    {userProfile.isAdmin ? <ShieldOff className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {userProfile.isAdmin ? 'Remover Admin' : 'Tornar Admin'}
+                                </TooltipContent>
+                              </Tooltip>
+                              
                               {userProfile.status !== 'approved' && (
                                 <Button
                                   size="sm"

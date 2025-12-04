@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { X, TrendingUp, TrendingDown, Play, Pause, GripVertical, Wallet, Bell } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Play, Pause, GripVertical, Wallet, Bell, RotateCcw } from 'lucide-react';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useCalculatorStore, CalculatorData } from '@/hooks/useCalculatorStore';
@@ -228,14 +228,40 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
               </Badge>
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onRemove(id)}
-            className="h-6 w-6 text-muted-foreground hover:text-destructive"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setValorInvestido('');
+                    setEntradaSpot('');
+                    setEntradaFuturo('');
+                    setFechamentoSpot('');
+                    setFechamentoFuturo('');
+                    setTrackingActive(false);
+                    setLucroUSD(0);
+                    setLucroBRL(0);
+                    setVarTotal(0);
+                    lastNotifiedVarTotal.current = 0;
+                  }}
+                  className="h-6 w-6 text-muted-foreground hover:text-warning"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Resetar campos</TooltipContent>
+            </Tooltip>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onRemove(id)}
+              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-3 pt-0 space-y-3">

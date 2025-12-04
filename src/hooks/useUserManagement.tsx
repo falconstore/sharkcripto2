@@ -9,6 +9,7 @@ export interface UserProfile {
   avatar_url: string | null;
   status: 'pending' | 'approved' | 'blocked';
   created_at: string | null;
+  isAdmin?: boolean;
 }
 
 export interface UserStats {
@@ -34,9 +35,18 @@ export function useUserManagement() {
 
       if (error) throw error;
 
+      // Fetch admin roles
+      const { data: rolesData } = await supabase
+        .from('user_roles')
+        .select('user_id, role')
+        .eq('role', 'admin');
+
+      const adminUserIds = new Set((rolesData || []).map(r => r.user_id));
+
       const typedUsers = (data || []).map(user => ({
         ...user,
-        status: (user.status as 'pending' | 'approved' | 'blocked') || 'pending'
+        status: (user.status as 'pending' | 'approved' | 'blocked') || 'pending',
+        isAdmin: adminUserIds.has(user.id)
       }));
 
       setUsers(typedUsers);
@@ -86,6 +96,56 @@ export function useUserManagement() {
     }
   };
 
+  const promoteToAdmin = async (userId: string) => {
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id' });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Sucesso',
+        description: 'Usuário promovido a administrador',
+      });
+
+      await fetchUsers();
+    } catch (error) {
+      console.error('Error promoting user:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível promover o usuário',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const demoteFromAdmin = async (userId: string) => {
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId)
+        .eq('role', 'admin');
+
+      if (error) throw error;
+
+      toast({
+        title: 'Sucesso',
+        description: 'Permissão de admin removida',
+      });
+
+      await fetchUsers();
+    } catch (error) {
+      console.error('Error demoting user:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível remover admin',
+        variant: 'destructive',
+      });
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
@@ -96,5 +156,7 @@ export function useUserManagement() {
     loading,
     fetchUsers,
     updateUserStatus,
+    promoteToAdmin,
+    demoteFromAdmin,
   };
 }
