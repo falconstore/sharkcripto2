@@ -4,6 +4,8 @@
  * 
  * This version uses Edge Function API instead of direct database connection
  * for better security with Lovable Cloud.
+ * 
+ * Uses multiple WebSocket connections (chunked) for stability.
  */
 
 require('dotenv').config();
@@ -43,9 +45,9 @@ const CONFIG = {
   reconnectDelayMs: 5000,
   pingIntervalMs: 30000,
   
-  // Subscription settings (chunks to avoid connection drops)
-  subscriptionChunkSize: 50,    // Símbolos por chunk
-  subscriptionDelayMs: 200,     // Delay entre chunks (ms)
+  // Multiple connections for stability (symbols per connection)
+  spotChunkSize: 20,
+  futuresChunkSize: 30,
 };
 
 // ==============================================
@@ -57,6 +59,10 @@ const futuresData = new Map();   // symbol -> { bid, ask, volume24h, fundingRate
 const opportunities = new Map(); // symbol -> full opportunity object
 const lastCrossings = new Map(); // symbol -> last crossing timestamp
 const pendingCrossings = [];     // Queue of crossings to send
+
+// WebSocket connections tracking
+const spotConnections = new Map();    // chunkId -> { ws, pingInterval, symbols }
+const futuresConnections = new Map(); // chunkId -> { ws, pingInterval, symbols }
 
 // ==============================================
 // Protocol Buffers Setup
@@ -99,38 +105,6 @@ function decompressGzip(data) {
 
 function formatSymbol(symbol) {
   return symbol.replace('_USDT', '').replace('USDT', '');
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function subscribeInChunks(ws, symbols, createMessage, chunkSize, delayMs, name) {
-  const chunks = [];
-  for (let i = 0; i < symbols.length; i += chunkSize) {
-    chunks.push(symbols.slice(i, i + chunkSize));
-  }
-  
-  log('INFO', `[${name}] Iniciando subscrição: ${symbols.length} símbolos em ${chunks.length} chunks`);
-  
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    
-    for (const symbol of chunk) {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(createMessage(symbol)));
-      }
-    }
-    
-    log('DEBUG', `[${name}] Chunk ${i + 1}/${chunks.length} enviado (${chunk.length} símbolos)`);
-    
-    // Delay entre chunks (exceto no último)
-    if (i < chunks.length - 1) {
-      await sleep(delayMs);
-    }
-  }
-  
-  log('INFO', `[${name}] ✅ Subscrição completa: ${symbols.length} símbolos`);
 }
 
 // ==============================================
@@ -246,70 +220,8 @@ async function fetchFundingRates() {
 }
 
 // ==============================================
-// WebSocket: MEXC Spot (Protocol Buffers)
+// WebSocket: MEXC Spot (Multiple Connections)
 // ==============================================
-
-let spotWs = null;
-let spotPingInterval = null;
-
-function connectSpotWebSocket(symbols) {
-  if (spotWs) {
-    spotWs.close();
-  }
-  
-  log('INFO', `Conectando WebSocket Spot com ${symbols.length} símbolos...`);
-  
-  spotWs = new WebSocket(CONFIG.mexcSpotWs);
-  
-  spotWs.on('open', async () => {
-    log('INFO', '✅ WebSocket Spot conectado');
-    
-    // Subscribe using chunks to avoid connection drops
-    await subscribeInChunks(
-      spotWs,
-      symbols,
-      (symbol) => ({
-        method: 'SUBSCRIPTION',
-        params: [`spot@public.limit.depth.v3.api.pb@${symbol}@5`]
-      }),
-      CONFIG.subscriptionChunkSize,
-      CONFIG.subscriptionDelayMs,
-      'SPOT'
-    );
-    
-    // Setup ping interval
-    spotPingInterval = setInterval(() => {
-      if (spotWs.readyState === WebSocket.OPEN) {
-        spotWs.send(JSON.stringify({ method: 'PING' }));
-      }
-    }, CONFIG.pingIntervalMs);
-  });
-  
-  spotWs.on('message', async (data) => {
-    try {
-      if (Buffer.isBuffer(data)) {
-        await handleSpotProtobufMessage(data);
-      } else {
-        const msg = JSON.parse(data.toString());
-        if (msg.d) {
-          handleSpotJsonMessage(msg);
-        }
-      }
-    } catch (error) {
-      // Ignore parse errors
-    }
-  });
-  
-  spotWs.on('close', () => {
-    log('WARN', '⚠️ WebSocket Spot desconectado, reconectando...');
-    clearInterval(spotPingInterval);
-    setTimeout(() => connectSpotWebSocket(symbols), CONFIG.reconnectDelayMs);
-  });
-  
-  spotWs.on('error', (error) => {
-    log('ERROR', 'Erro WebSocket Spot', { error: error.message });
-  });
-}
 
 async function handleSpotProtobufMessage(data) {
   try {
@@ -366,50 +278,129 @@ function handleSpotJsonMessage(msg) {
   }
 }
 
-// ==============================================
-// WebSocket: MEXC Futures
-// ==============================================
+function connectSpotChunks(symbols) {
+  const totalChunks = Math.ceil(symbols.length / CONFIG.spotChunkSize);
+  log('INFO', `🔌 Iniciando ${totalChunks} conexões Spot (${symbols.length} símbolos / ${CONFIG.spotChunkSize} por conexão)`);
+  
+  for (let i = 0; i < symbols.length; i += CONFIG.spotChunkSize) {
+    const chunk = symbols.slice(i, i + CONFIG.spotChunkSize);
+    const chunkId = Math.floor(i / CONFIG.spotChunkSize);
+    connectSpotChunk(chunk, chunkId);
+  }
+}
 
-let futuresWs = null;
-let futuresPingInterval = null;
-
-function connectFuturesWebSocket(symbols) {
-  if (futuresWs) {
-    futuresWs.close();
+function connectSpotChunk(symbols, chunkId) {
+  // Close existing connection if any
+  const existing = spotConnections.get(chunkId);
+  if (existing) {
+    clearInterval(existing.pingInterval);
+    if (existing.ws.readyState === WebSocket.OPEN) {
+      existing.ws.close();
+    }
   }
   
-  log('INFO', `Conectando WebSocket Futures com ${symbols.length} símbolos...`);
+  const ws = new WebSocket(CONFIG.mexcSpotWs);
   
-  futuresWs = new WebSocket(CONFIG.mexcFuturesWs);
-  
-  futuresWs.on('open', async () => {
-    log('INFO', '✅ WebSocket Futures conectado');
+  ws.on('open', () => {
+    log('INFO', `[SPOT #${chunkId + 1}] ✅ Conectado com ${symbols.length} símbolos`);
     
-    // Subscribe using chunks to avoid connection drops
-    await subscribeInChunks(
-      futuresWs,
-      symbols,
-      (symbol) => ({
+    // Subscribe to all symbols in this chunk
+    symbols.forEach(symbol => {
+      ws.send(JSON.stringify({
+        method: 'SUBSCRIPTION',
+        params: [`spot@public.limit.depth.v3.api.pb@${symbol}@5`]
+      }));
+    });
+    
+    // Setup ping for this connection
+    const pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ method: 'PING' }));
+      }
+    }, CONFIG.pingIntervalMs);
+    
+    spotConnections.set(chunkId, { ws, pingInterval, symbols });
+  });
+  
+  ws.on('message', async (data) => {
+    try {
+      if (Buffer.isBuffer(data)) {
+        await handleSpotProtobufMessage(data);
+      } else {
+        const msg = JSON.parse(data.toString());
+        if (msg.d) {
+          handleSpotJsonMessage(msg);
+        }
+      }
+    } catch (error) {
+      // Ignore parse errors
+    }
+  });
+  
+  ws.on('close', () => {
+    log('WARN', `[SPOT #${chunkId + 1}] ⚠️ Desconectado, reconectando chunk...`);
+    const conn = spotConnections.get(chunkId);
+    if (conn) clearInterval(conn.pingInterval);
+    setTimeout(() => connectSpotChunk(symbols, chunkId), CONFIG.reconnectDelayMs);
+  });
+  
+  ws.on('error', (error) => {
+    log('ERROR', `[SPOT #${chunkId + 1}] Erro`, { error: error.message });
+  });
+}
+
+// ==============================================
+// WebSocket: MEXC Futures (Multiple Connections)
+// ==============================================
+
+function connectFuturesChunks(symbols) {
+  const totalChunks = Math.ceil(symbols.length / CONFIG.futuresChunkSize);
+  log('INFO', `🔌 Iniciando ${totalChunks} conexões Futures (${symbols.length} símbolos / ${CONFIG.futuresChunkSize} por conexão)`);
+  
+  for (let i = 0; i < symbols.length; i += CONFIG.futuresChunkSize) {
+    const chunk = symbols.slice(i, i + CONFIG.futuresChunkSize);
+    const chunkId = Math.floor(i / CONFIG.futuresChunkSize);
+    connectFuturesChunk(chunk, chunkId);
+  }
+}
+
+function connectFuturesChunk(symbols, chunkId) {
+  // Close existing connection if any
+  const existing = futuresConnections.get(chunkId);
+  if (existing) {
+    clearInterval(existing.pingInterval);
+    if (existing.ws.readyState === WebSocket.OPEN) {
+      existing.ws.close();
+    }
+  }
+  
+  const ws = new WebSocket(CONFIG.mexcFuturesWs);
+  
+  ws.on('open', () => {
+    log('INFO', `[FUTURES #${chunkId + 1}] ✅ Conectado com ${symbols.length} símbolos`);
+    
+    // Subscribe to all symbols in this chunk
+    symbols.forEach(symbol => {
+      ws.send(JSON.stringify({
         method: 'sub.depth.full',
         param: {
           symbol: symbol,
           limit: 5
         }
-      }),
-      CONFIG.subscriptionChunkSize,
-      CONFIG.subscriptionDelayMs,
-      'FUTURES'
-    );
+      }));
+    });
     
-    // Setup ping interval
-    futuresPingInterval = setInterval(() => {
-      if (futuresWs.readyState === WebSocket.OPEN) {
-        futuresWs.send(JSON.stringify({ method: 'ping' }));
+    // Setup ping for this connection
+    const pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ method: 'ping' }));
       }
     }, CONFIG.pingIntervalMs);
+    
+    futuresConnections.set(chunkId, { ws, pingInterval, symbols });
   });
   
-  futuresWs.on('message', (data) => {
+  ws.on('message', (data) => {
     try {
       const msg = JSON.parse(data.toString());
       
@@ -430,14 +421,15 @@ function connectFuturesWebSocket(symbols) {
     }
   });
   
-  futuresWs.on('close', () => {
-    log('WARN', '⚠️ WebSocket Futures desconectado, reconectando...');
-    clearInterval(futuresPingInterval);
-    setTimeout(() => connectFuturesWebSocket(symbols), CONFIG.reconnectDelayMs);
+  ws.on('close', () => {
+    log('WARN', `[FUTURES #${chunkId + 1}] ⚠️ Desconectado, reconectando chunk...`);
+    const conn = futuresConnections.get(chunkId);
+    if (conn) clearInterval(conn.pingInterval);
+    setTimeout(() => connectFuturesChunk(symbols, chunkId), CONFIG.reconnectDelayMs);
   });
   
-  futuresWs.on('error', (error) => {
-    log('ERROR', 'Erro WebSocket Futures', { error: error.message });
+  ws.on('error', (error) => {
+    log('ERROR', `[FUTURES #${chunkId + 1}] Erro`, { error: error.message });
   });
 }
 
@@ -591,10 +583,10 @@ async function initialize() {
   fundingRates = await fetchFundingRates();
   log('INFO', `Carregadas ${Object.keys(fundingRates).length} funding rates`);
   
-  // Connect WebSockets
+  // Connect WebSockets (multiple connections per market)
   const spotSymbolsToSubscribe = commonSymbols.map(s => s.replace('_USDT', 'USDT'));
-  connectSpotWebSocket(spotSymbolsToSubscribe);
-  connectFuturesWebSocket(commonSymbols);
+  connectSpotChunks(spotSymbolsToSubscribe);
+  connectFuturesChunks(commonSymbols);
   
   // Start processing loop
   setInterval(processData, CONFIG.updateIntervalMs);
@@ -612,7 +604,9 @@ async function initialize() {
   
   // Log stats every minute
   setInterval(() => {
-    log('INFO', `📊 Stats: ${spotData.size} spot, ${futuresData.size} futures, ${opportunities.size} oportunidades`);
+    const spotConns = spotConnections.size;
+    const futuresConns = futuresConnections.size;
+    log('INFO', `📊 Stats: ${spotData.size} spot, ${futuresData.size} futures, ${opportunities.size} oportunidades | Conexões: ${spotConns} spot, ${futuresConns} futures`);
   }, 60 * 1000);
   
   log('INFO', '✅ Monitor iniciado com sucesso!');
@@ -622,23 +616,35 @@ async function initialize() {
 // Graceful Shutdown
 // ==============================================
 
+function closeAllConnections() {
+  // Close all spot connections
+  for (const [chunkId, conn] of spotConnections.entries()) {
+    clearInterval(conn.pingInterval);
+    if (conn.ws.readyState === WebSocket.OPEN) {
+      conn.ws.close();
+    }
+  }
+  spotConnections.clear();
+  
+  // Close all futures connections
+  for (const [chunkId, conn] of futuresConnections.entries()) {
+    clearInterval(conn.pingInterval);
+    if (conn.ws.readyState === WebSocket.OPEN) {
+      conn.ws.close();
+    }
+  }
+  futuresConnections.clear();
+}
+
 process.on('SIGINT', () => {
   log('INFO', '🛑 Encerrando monitor...');
-  
-  if (spotWs) spotWs.close();
-  if (futuresWs) futuresWs.close();
-  clearInterval(spotPingInterval);
-  clearInterval(futuresPingInterval);
-  
+  closeAllConnections();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   log('INFO', '🛑 Encerrando monitor (SIGTERM)...');
-  
-  if (spotWs) spotWs.close();
-  if (futuresWs) futuresWs.close();
-  
+  closeAllConnections();
   process.exit(0);
 });
 
