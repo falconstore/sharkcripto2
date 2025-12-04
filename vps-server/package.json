@@ -1,0 +1,20 @@
+{
+  "name": "shark-crypto-monitor",
+  "version": "1.0.0",
+  "description": "MEXC Arbitrage Monitor with WebSocket and Protocol Buffers",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "protobufjs": "^7.3.2",
+    "ws": "^8.17.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
