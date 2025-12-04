@@ -605,7 +605,7 @@ const OpportunitiesTable = () => {
                             className={`font-mono font-semibold px-3 py-1 ${
                               opp.spread_net_percent_entrada >= 0 
                                 ? 'bg-profit/20 text-profit border-profit/40' 
-                                : 'bg-destructive/20 text-destructive border-destructive/40'
+                                : 'bg-negative-subtle text-negative border-red-500/40'
                             }`}
                           >
                             {formatNumber(opp.spread_net_percent_entrada, 4)}%
@@ -619,7 +619,7 @@ const OpportunitiesTable = () => {
                             className={`font-mono font-semibold px-3 py-1 ${
                               opp.spread_net_percent_saida >= 0 
                                 ? 'bg-profit/20 text-profit border-profit/40' 
-                                : 'bg-destructive/20 text-destructive border-destructive/40'
+                                : 'bg-negative-subtle text-negative border-red-500/40'
                             }`}
                           >
                             {formatNumber(opp.spread_net_percent_saida, 4)}%
@@ -629,7 +629,7 @@ const OpportunitiesTable = () => {
                       {isColumnVisible('funding_rate') && (
                         <TableCell className="text-center">
                           <span className={`font-mono font-semibold ${
-                            (opp.funding_rate || 0) >= 0 ? 'text-profit' : 'text-destructive'
+                            (opp.funding_rate || 0) >= 0 ? 'text-profit' : 'text-negative'
                           }`}>
                             {((opp.funding_rate || 0) * 100).toFixed(4)}%
                           </span>

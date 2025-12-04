@@ -1,17 +1,14 @@
 import { useMemo } from 'react';
-import { TrendingUp, Activity, DollarSign } from 'lucide-react';
+import { TrendingUp, Activity, DollarSign, Zap } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { usePreferences } from '@/hooks/usePreferences';
+
 const DashboardStats = () => {
-  const {
-    opportunities
-  } = useOpportunities();
-  const {
-    blacklist
-  } = usePreferences();
+  const { opportunities } = useOpportunities();
+  const { blacklist } = usePreferences();
+
   const stats = useMemo(() => {
-    // Filtrar blacklist
     const filtered = opportunities.filter(opp => !blacklist.has(opp.pair_symbol));
     if (filtered.length === 0) {
       return {
@@ -22,7 +19,6 @@ const DashboardStats = () => {
       };
     }
 
-    // Contar apenas oportunidades com spread > 0.01%
     const activeOpps = filtered.filter(opp => opp.spread_net_percent > 0.01);
     return {
       activeOpportunities: activeOpps.length,
@@ -31,6 +27,7 @@ const DashboardStats = () => {
       uniquePairs: filtered.length
     };
   }, [opportunities, blacklist]);
+
   const formatVolume = (num: number) => {
     if (num >= 1000000000) {
       return `$${(num / 1000000000).toFixed(2)}B`;
@@ -39,69 +36,103 @@ const DashboardStats = () => {
     }
     return `$${(num / 1000).toFixed(0)}K`;
   };
-  return <TooltipProvider>
+
+  const cards = [
+    {
+      label: 'Pares Monitorados',
+      value: stats.uniquePairs,
+      subtitle: 'USDT pares ativos',
+      icon: Activity,
+      tooltip: 'Total de pares de trading USDT sendo monitorados no momento',
+      iconColor: 'text-primary',
+      delay: '0s'
+    },
+    {
+      label: 'Oportunidades Ativas',
+      value: stats.activeOpportunities,
+      subtitle: 'Últimos 5 minutos',
+      icon: TrendingUp,
+      tooltip: 'Oportunidades com spread maior que 0.01% detectadas recentemente',
+      iconColor: 'text-primary',
+      pulse: true,
+      delay: '0.1s'
+    },
+    {
+      label: 'Melhor Spread',
+      value: stats.bestSpread > 0 ? `${stats.bestSpread.toFixed(2)}%` : '--',
+      subtitle: 'Spread líquido atual',
+      icon: Zap,
+      tooltip: 'Maior diferença percentual entre preços spot e futuros (após taxas)',
+      iconColor: 'text-accent',
+      highlight: true,
+      delay: '0.2s'
+    },
+    {
+      label: 'Volume Total 24h',
+      value: stats.totalVolume24h > 0 ? formatVolume(stats.totalVolume24h) : '--',
+      subtitle: 'Spot + Futuros combinados',
+      icon: DollarSign,
+      tooltip: 'Soma do volume de negociação nas últimas 24h (spot + futuros)',
+      iconColor: 'text-primary',
+      delay: '0.3s'
+    }
+  ];
+
+  return (
+    <TooltipProvider>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift hover:shadow-lg transition-all cursor-pointer">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-muted-foreground">Pares Monitorados</div>
-                <Activity className="w-6 h-6 text-primary drop-shadow-[0_0_8px_rgba(124,58,237,0.3)]" />
-              </div>
-              <div className="text-3xl font-bold animate-fade-in">{stats.uniquePairs}</div>
-              <p className="text-xs text-muted-foreground mt-1">USDT pares ativos</p>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Total de pares de trading USDT sendo monitorados no momento</p>
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift hover:shadow-lg transition-all cursor-pointer">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-muted-foreground">Oportunidades Ativas</div>
-                <TrendingUp className="w-6 h-6 text-gold drop-shadow-[0_0_8px_rgba(255,215,0,0.4)]" />
-              </div>
-              <div className="text-3xl font-bold text-gold animate-pulse">
-                {stats.activeOpportunities}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Últimos 5 minutos</p>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Oportunidades com spread maior que 0.01% detectadas recentemente</p>
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Maior diferença percentual entre preços spot e futuros (após taxas)</p>
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="bg-gradient-card rounded-lg p-6 border border-border hover-lift hover:shadow-lg transition-all cursor-pointer">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-muted-foreground">Volume Total 24h</div>
-                <DollarSign className="w-6 h-6 text-primary drop-shadow-[0_0_8px_rgba(124,58,237,0.3)]" />
-              </div>
-              <div className="text-3xl font-bold animate-fade-in">
-                {stats.totalVolume24h > 0 ? formatVolume(stats.totalVolume24h) : '--'}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Spot + Futuros combinados</p>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Soma do volume de negociação nas últimas 24h (spot + futuros)</p>
-          </TooltipContent>
-        </Tooltip>
+        {cards.map((card, index) => {
+          const Icon = card.icon;
+          return (
+            <Tooltip key={card.label}>
+              <TooltipTrigger asChild>
+                <div 
+                  className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-500 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/10 animate-fade-in-up cursor-pointer"
+                  style={{ animationDelay: card.delay }}
+                >
+                  {/* Animated gradient border on hover */}
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" />
+                  
+                  {/* Shimmer effect on hover */}
+                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+                  
+                  {/* Glow effect for highlight cards */}
+                  {card.highlight && (
+                    <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 to-accent/30 rounded-xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity animate-pulse-glow -z-20" />
+                  )}
+                  
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                        {card.label}
+                      </span>
+                      <div className={`p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-all duration-300 group-hover:scale-110 ${card.pulse ? 'animate-pulse-gold' : ''}`}>
+                        <Icon className={`w-5 h-5 ${card.iconColor} drop-shadow-[0_0_8px_hsl(var(--primary)/0.5)]`} />
+                      </div>
+                    </div>
+                    
+                    <div className={`text-3xl font-bold mb-1 transition-all duration-300 group-hover:text-gradient-gold ${card.highlight ? 'text-gradient-gold' : ''} ${card.pulse ? 'animate-pulse-gold' : ''}`}>
+                      {card.value}
+                    </div>
+                    
+                    <p className="text-xs text-muted-foreground">
+                      {card.subtitle}
+                    </p>
+                    
+                    {/* Bottom accent line */}
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-500" />
+                  </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{card.tooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
       </div>
-    </TooltipProvider>;
+    </TooltipProvider>
+  );
 };
+
 export default DashboardStats;
