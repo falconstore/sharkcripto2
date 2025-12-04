@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_action_history: {
+        Row: {
+          action_type: string
+          admin_user_id: string
+          created_at: string
+          details: string | null
+          id: string
+          target_user_id: string
+        }
+        Insert: {
+          action_type: string
+          admin_user_id: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          target_user_id: string
+        }
+        Update: {
+          action_type?: string
+          admin_user_id?: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          target_user_id?: string
+        }
+        Relationships: []
+      }
       arbitrage_opportunities: {
         Row: {
           created_at: string | null
