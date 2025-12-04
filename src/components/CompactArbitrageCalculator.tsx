@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -6,36 +6,98 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { X, TrendingUp, TrendingDown, Play, Pause } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { X, TrendingUp, TrendingDown, Play, Pause, GripVertical, Wallet, Bell } from 'lucide-react';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
+import { useCalculatorStore, CalculatorData } from '@/hooks/useCalculatorStore';
+import { useBankroll } from '@/hooks/useBankroll';
+import { toast } from 'sonner';
 
 interface CompactArbitrageCalculatorProps {
   id: string;
   onRemove: (id: string) => void;
+  isDragging?: boolean;
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
 }
 
-const CompactArbitrageCalculator = ({ id, onRemove }: CompactArbitrageCalculatorProps) => {
+const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps }: CompactArbitrageCalculatorProps) => {
   const { opportunities } = useOpportunities();
   const { rate: taxaCambioAtual } = useExchangeRate();
+  const { updateCalculator, calculators, profitThreshold, soundEnabled } = useCalculatorStore();
+  const { addOperation } = useBankroll();
 
-  // Estados básicos
-  const [valorInvestido, setValorInvestido] = useState<string>('');
-  const [selectedPair, setSelectedPair] = useState<string>('');
-  const [trackingActive, setTrackingActive] = useState(false);
+  // Get stored calculator data
+  const storedCalc = useMemo(() => 
+    calculators.find(c => c.id === id), 
+    [calculators, id]
+  );
 
-  // Estados de entrada/saída
-  const [entradaSpot, setEntradaSpot] = useState<string>('');
-  const [entradaFuturo, setEntradaFuturo] = useState<string>('');
-  const [fechamentoSpot, setFechamentoSpot] = useState<string>('');
-  const [fechamentoFuturo, setFechamentoFuturo] = useState<string>('');
+  // Local states initialized from store
+  const [valorInvestido, setValorInvestido] = useState<string>(storedCalc?.valorInvestido || '');
+  const [selectedPair, setSelectedPair] = useState<string>(storedCalc?.selectedPair || '');
+  const [trackingActive, setTrackingActive] = useState(storedCalc?.trackingActive || false);
+  const [entradaSpot, setEntradaSpot] = useState<string>(storedCalc?.entradaSpot || '');
+  const [entradaFuturo, setEntradaFuturo] = useState<string>(storedCalc?.entradaFuturo || '');
+  const [fechamentoSpot, setFechamentoSpot] = useState<string>(storedCalc?.fechamentoSpot || '');
+  const [fechamentoFuturo, setFechamentoFuturo] = useState<string>(storedCalc?.fechamentoFuturo || '');
 
   // Estados de resultado
   const [lucroUSD, setLucroUSD] = useState<number>(0);
   const [lucroBRL, setLucroBRL] = useState<number>(0);
   const [varTotal, setVarTotal] = useState<number>(0);
   
-  const TAXA = 0.001; // 0.1%
+  // Sound notification ref
+  const lastNotifiedProfit = useRef<number>(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  
+  const TAXA = 0.001;
+
+  // Persist state changes to store
+  useEffect(() => {
+    updateCalculator(id, {
+      selectedPair,
+      valorInvestido,
+      entradaSpot,
+      entradaFuturo,
+      fechamentoSpot,
+      fechamentoFuturo,
+      trackingActive,
+    });
+  }, [selectedPair, valorInvestido, entradaSpot, entradaFuturo, fechamentoSpot, fechamentoFuturo, trackingActive, id, updateCalculator]);
+
+  // Sound notification for profit
+  useEffect(() => {
+    if (soundEnabled && lucroUSD > 0 && lucroUSD >= profitThreshold && lucroUSD !== lastNotifiedProfit.current) {
+      playProfitSound();
+      lastNotifiedProfit.current = lucroUSD;
+    }
+  }, [lucroUSD, profitThreshold, soundEnabled]);
+
+  const playProfitSound = () => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime); // A5
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.3);
+    } catch (e) {
+      console.log('Audio not supported');
+    }
+  };
 
   // Oportunidade selecionada
   const selectedOpp = useMemo(() => {
@@ -88,6 +150,24 @@ const CompactArbitrageCalculator = ({ id, onRemove }: CompactArbitrageCalculator
     setVarTotal(variacaoTotal * 100);
   };
 
+  const handleSaveToBank = () => {
+    if (!valorInvestido || lucroUSD === 0) {
+      toast.error('Calcule uma operação antes de salvar');
+      return;
+    }
+    
+    addOperation({
+      operation_type: 'trade',
+      amount_usdt: parseFloat(valorInvestido),
+      profit_usdt: lucroUSD,
+      profit_brl: lucroBRL,
+      pair_symbol: selectedPair || 'N/A',
+      notes: `Gerenciamento - Var: ${varTotal.toFixed(4)}%`
+    });
+    
+    toast.success('Operação salva na banca!');
+  };
+
   const spreadEntrada = useMemo(() => {
     if (!entradaSpot || !entradaFuturo) return 0;
     const sE = parseFloat(entradaSpot);
@@ -95,14 +175,23 @@ const CompactArbitrageCalculator = ({ id, onRemove }: CompactArbitrageCalculator
     return (fE / sE - 1) * 100;
   }, [entradaSpot, entradaFuturo]);
 
+  const showProfitAlert = lucroUSD > 0 && lucroUSD >= profitThreshold;
+
   return (
-    <Card className="bg-gradient-card border-border/50 hover:border-primary/30 transition-all">
+    <Card className={`bg-gradient-card border-border/50 hover:border-primary/30 transition-all ${isDragging ? 'opacity-50 scale-105' : ''}`}>
       <CardHeader className="p-3 pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
+            {/* Drag Handle */}
+            <div 
+              {...dragHandleProps}
+              className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-muted-foreground hover:text-foreground"
+            >
+              <GripVertical className="w-4 h-4" />
+            </div>
             <Select value={selectedPair} onValueChange={setSelectedPair}>
-              <SelectTrigger className="w-[140px] h-8 text-xs">
-                <SelectValue placeholder="Selecionar par..." />
+              <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectValue placeholder="Par..." />
               </SelectTrigger>
               <SelectContent>
                 {opportunities.map(opp => (
@@ -114,7 +203,13 @@ const CompactArbitrageCalculator = ({ id, onRemove }: CompactArbitrageCalculator
             </Select>
             {trackingActive && (
               <Badge variant="outline" className="bg-profit/10 text-profit text-[10px] animate-pulse">
-                AO VIVO
+                LIVE
+              </Badge>
+            )}
+            {showProfitAlert && (
+              <Badge variant="outline" className="bg-gold/20 text-gold text-[10px] animate-pulse">
+                <Bell className="w-2.5 h-2.5 mr-0.5" />
+                $
               </Badge>
             )}
           </div>
@@ -209,17 +304,33 @@ const CompactArbitrageCalculator = ({ id, onRemove }: CompactArbitrageCalculator
           </div>
         )}
 
-        {/* Botão Calcular */}
-        <Button
-          onClick={() => calcular()}
-          className="w-full h-8 text-xs bg-gradient-primary"
-          disabled={trackingActive}
-        >
-          {trackingActive ? 'Calculando...' : 'Calcular'}
-        </Button>
+        {/* Botões */}
+        <div className="flex gap-2">
+          <Button
+            onClick={() => calcular()}
+            className="flex-1 h-8 text-xs bg-gradient-primary"
+            disabled={trackingActive}
+          >
+            {trackingActive ? 'Auto...' : 'Calcular'}
+          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={handleSaveToBank}
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 bg-gold/10 text-gold border-gold/30 hover:bg-gold/20"
+                disabled={lucroUSD === 0}
+              >
+                <Wallet className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Salvar na Banca</TooltipContent>
+          </Tooltip>
+        </div>
 
         {/* Resultados */}
-        <div className="p-2 rounded-md bg-accent/30 border border-border/50">
+        <div className={`p-2 rounded-md border border-border/50 ${showProfitAlert ? 'bg-profit/10 border-profit/30' : 'bg-accent/30'}`}>
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-muted-foreground">Spread Entrada:</span>
             <Badge
