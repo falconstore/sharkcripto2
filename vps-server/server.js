@@ -225,30 +225,24 @@ async function fetchFundingRates() {
 
 async function handleSpotProtobufMessage(data) {
   try {
-    // Decode wrapper diretamente (não está comprimido no nível externo)
     const msg = PushDataV3ApiWrapper.decode(data);
     
     // Extrair símbolo
     const symbol = msg.symbol || msg.symbolId;
     if (!symbol) return;
     
-    // Tentar extrair depth do campo data
-    if (msg.data && msg.data.length > 0) {
-      let depthBuffer = msg.data;
+    // Acessar publicLimitDepths DIRETAMENTE (estrutura real da MEXC)
+    const asks = msg.publicLimitDepths?.asks;
+    const bids = msg.publicLimitDepths?.bids;
+    
+    if (asks?.length > 0 && bids?.length > 0) {
+      const askPrice = parseFloat(asks[0].price);
+      const bidPrice = parseFloat(bids[0].price);
       
-      // Tentar descomprimir o campo data se necessário
-      try {
-        depthBuffer = await decompressGzip(msg.data);
-      } catch {
-        // Não está comprimido, usar direto
-      }
-      
-      const depth = PublicLimitDepthsV3Api.decode(depthBuffer);
-      
-      if (depth.bids?.length > 0 && depth.asks?.length > 0) {
+      if (!isNaN(askPrice) && !isNaN(bidPrice)) {
         spotData.set(symbol, {
-          bid: parseFloat(depth.bids[0].p),
-          ask: parseFloat(depth.asks[0].p),
+          bid: bidPrice,
+          ask: askPrice,
           timestamp: Date.now()
         });
       }
