@@ -5,7 +5,7 @@ import { usePreferences } from '@/hooks/usePreferences';
 import { useAdmin } from '@/hooks/useAdmin';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Moon, Sun, LogOut, TrendingUp, BarChart3, Bell, Ban, Target, Wallet, ListChecks, Shield } from 'lucide-react';
+import { LogOut, TrendingUp, BarChart3, Bell, Ban, Target, Wallet, ListChecks, Shield, Users } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationSettings from './NotificationSettings';
@@ -14,10 +14,11 @@ import SpreadAlertsManager from './SpreadAlertsManager';
 import BankrollManager from './BankrollManager';
 import { useSpreadAlerts } from '@/hooks/useSpreadAlerts';
 import { Separator } from '@/components/ui/separator';
+import { SharkCriptoLogo } from '@/components/SharkCriptoLogo';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const DashboardHeader = () => {
   const { user, signOut } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const { blacklist } = usePreferences();
   const { alerts } = useSpreadAlerts();
   const { isAdmin } = useAdmin();
@@ -35,21 +36,17 @@ const DashboardHeader = () => {
   };
 
   return (
-    <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+    <header className="border-b border-border/50 bg-card/80 backdrop-blur-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           {/* Logo e Navegação Principal */}
           <div className="flex items-center gap-6">
             {/* Logo */}
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')}>
-              <TrendingUp className="w-8 h-8 text-gold" />
-              <div>
-                <h1 className="text-xl font-bold">Shark Cripto</h1>
-                <p className="text-[10px] text-muted-foreground hidden sm:block">Monitoramento em Tempo Real</p>
-              </div>
+            <div className="cursor-pointer" onClick={() => navigate('/dashboard')}>
+              <SharkCriptoLogo size={40} />
             </div>
 
-            <Separator orientation="vertical" className="h-8 hidden md:block" />
+            <Separator orientation="vertical" className="h-8 hidden md:block bg-border/50" />
 
             {/* Navegação Principal */}
             <nav className="hidden md:flex items-center gap-1">
@@ -57,7 +54,6 @@ const DashboardHeader = () => {
                 variant={isActivePath('/dashboard') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate('/dashboard')}
-                className={isActivePath('/dashboard') ? 'bg-primary' : ''}
               >
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Monitoramento
@@ -67,12 +63,11 @@ const DashboardHeader = () => {
                 variant={isActivePath('/listings') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate('/listings')}
-                className={isActivePath('/listings') ? 'bg-primary' : ''}
               >
                 <ListChecks className="w-4 h-4 mr-2" />
                 Listagem
                 {isAdmin && (
-                  <Shield className="w-3 h-3 ml-1 text-gold" />
+                  <Shield className="w-3 h-3 ml-1 text-primary" />
                 )}
               </Button>
 
@@ -80,11 +75,21 @@ const DashboardHeader = () => {
                 variant={isActivePath('/statistics') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate('/statistics')}
-                className={isActivePath('/statistics') ? 'bg-primary' : ''}
               >
                 <BarChart3 className="w-4 h-4 mr-2" />
                 Estatísticas
               </Button>
+
+              {isAdmin && (
+                <Button
+                  variant={isActivePath('/admin') ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => navigate('/admin')}
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Admin
+                </Button>
+              )}
             </nav>
           </div>
 
@@ -103,7 +108,7 @@ const DashboardHeader = () => {
                 {alerts.length > 0 && (
                   <Badge 
                     variant="default" 
-                    className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs bg-gold"
+                    className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs"
                   >
                     {alerts.length}
                   </Badge>
@@ -138,7 +143,7 @@ const DashboardHeader = () => {
               </Button>
             </div>
 
-            <Separator orientation="vertical" className="h-6 hidden sm:block" />
+            <Separator orientation="vertical" className="h-6 hidden sm:block bg-border/50" />
 
             {/* Configurações */}
             <Button 
@@ -150,21 +155,14 @@ const DashboardHeader = () => {
               <Bell className="w-5 h-5" />
             </Button>
 
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={toggleTheme} 
-              className="hover-gold"
-            >
-              {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-            </Button>
+            <ThemeToggle />
 
             {/* Usuário */}
             {user && (
               <>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/50 border border-border/50">
                   <Avatar className="w-8 h-8">
-                    <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    <AvatarFallback className="bg-gradient-gold text-primary-foreground text-xs font-bold">
                       {getInitials(user.email || 'U')}
                     </AvatarFallback>
                   </Avatar>
@@ -173,7 +171,7 @@ const DashboardHeader = () => {
                       {user.email?.split('@')[0]}
                     </span>
                     {isAdmin && (
-                      <Badge variant="outline" className="ml-2 text-[10px] bg-gold/20 text-gold border-gold/30">
+                      <Badge variant="outline" className="ml-2 text-[10px] bg-primary/20 text-primary border-primary/30">
                         Admin
                       </Badge>
                     )}
@@ -185,7 +183,7 @@ const DashboardHeader = () => {
                   size="icon" 
                   onClick={signOut} 
                   title="Sair" 
-                  className="hover:text-destructive-foreground hover:bg-destructive/10"
+                  className="hover:text-destructive hover:border-destructive/50"
                 >
                   <LogOut className="w-5 h-5" />
                 </Button>
@@ -195,7 +193,7 @@ const DashboardHeader = () => {
         </div>
 
         {/* Navegação Mobile */}
-        <nav className="flex md:hidden items-center justify-center gap-2 mt-3 pt-3 border-t border-border">
+        <nav className="flex md:hidden items-center justify-center gap-2 mt-3 pt-3 border-t border-border/50">
           <Button
             variant={isActivePath('/dashboard') ? 'default' : 'ghost'}
             size="sm"
@@ -219,6 +217,16 @@ const DashboardHeader = () => {
           >
             <BarChart3 className="w-4 h-4" />
           </Button>
+
+          {isAdmin && (
+            <Button
+              variant={isActivePath('/admin') ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => navigate('/admin')}
+            >
+              <Users className="w-4 h-4" />
+            </Button>
+          )}
 
           <Separator orientation="vertical" className="h-6" />
 
