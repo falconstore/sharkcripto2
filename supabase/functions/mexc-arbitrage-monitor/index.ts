@@ -151,8 +151,9 @@ Deno.serve(async (req) => {
         fetchFuturesTickers()
       ]);
 
-      if (spotTickers.size === 0 || futuresTickers.size === 0) {
-        console.log('⚠️ No data fetched, skipping this cycle');
+      // Permitir continuar mesmo se um dos mercados não tiver dados
+      if (spotTickers.size === 0 && futuresTickers.size === 0) {
+        console.log('⚠️ No data fetched from both markets, skipping this cycle');
         return [];
       }
 
@@ -161,58 +162,72 @@ Deno.serve(async (req) => {
       let crossingsRegistered = 0;
       const opportunities: any[] = [];
 
-      // Processar cada par que existe em ambos os mercados
-      for (const [baseSymbol, spotTicker] of spotTickers) {
+      // CORREÇÃO: Criar união de TODAS as moedas (spot + futures)
+      const allSymbols = new Set<string>([
+        ...spotTickers.keys(),
+        ...futuresTickers.keys()
+      ]);
+
+      console.log(`📊 Total de símbolos únicos (união spot+futures): ${allSymbols.size}`);
+
+      // Processar cada par que existe em PELO MENOS um mercado
+      for (const baseSymbol of allSymbols) {
+        const spotTicker = spotTickers.get(baseSymbol);
         const futuresTicker = futuresTickers.get(baseSymbol);
         
-        if (!futuresTicker) {
+        // Precisa existir em pelo menos um mercado
+        if (!spotTicker && !futuresTicker) {
           continue;
         }
         
         pairsProcessed++;
 
-        // Parse preços com validação
-        const spotBidPrice = parseFloat(spotTicker.bidPrice);  // Preço de VENDA do spot (para saída)
-        const spotAskPrice = parseFloat(spotTicker.askPrice);  // Preço de COMPRA do spot (para entrada)
-        const spotVolume = parseFloat(spotTicker.quoteVolume) || 0;
-        const futuresBidPrice = parseFloat(futuresTicker.bid1); // Preço de VENDA do futures (para entrada)
-        const futuresAskPrice = parseFloat(futuresTicker.ask1); // Preço de COMPRA do futures (para saída)
-        const futuresVolume = parseFloat(futuresTicker.volume24) || 0;
+        // Parse preços com fallback para 0 quando não existe no mercado
+        const spotBidPrice = spotTicker ? parseFloat(spotTicker.bidPrice) || 0 : 0;
+        const spotAskPrice = spotTicker ? parseFloat(spotTicker.askPrice) || 0 : 0;
+        const spotVolume = spotTicker ? parseFloat(spotTicker.quoteVolume) || 0 : 0;
+        const futuresBidPrice = futuresTicker ? parseFloat(futuresTicker.bid1) || 0 : 0;
+        const futuresAskPrice = futuresTicker ? parseFloat(futuresTicker.ask1) || 0 : 0;
+        const futuresVolume = futuresTicker ? parseFloat(futuresTicker.volume24) || 0 : 0;
 
-        // Validação: ignorar preços inválidos
-        if (!spotBidPrice || !spotAskPrice || !futuresBidPrice || !futuresAskPrice ||
-            spotBidPrice <= 0 || spotAskPrice <= 0 || futuresBidPrice <= 0 || futuresAskPrice <= 0) {
-          continue;
-        }
+        // Verificar se temos preços válidos para calcular spreads
+        const hasValidSpotPrices = spotBidPrice > 0 && spotAskPrice > 0;
+        const hasValidFuturesPrices = futuresBidPrice > 0 && futuresAskPrice > 0;
 
-        // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry) - ENTRADA
-        // Compra Spot (paga ASK) + Vende Futures (recebe BID)
-        const spreadGrossLong = ((futuresBidPrice - spotAskPrice) / spotAskPrice) * 100;
-        const spreadNetLong = spreadGrossLong - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
+        let spreadGrossLong = 0;
+        let spreadNetLong = 0;
+        let spreadGrossShort = 0;
+        let spreadNetShort = 0;
 
-        // DIREÇÃO 2: SHORT SPOT + LONG FUTURES (Reverse Cash and Carry) - SAÍDA
-        // Vende Spot (recebe BID) + Compra Futures (paga ASK)
-        const spreadGrossShort = ((spotBidPrice - futuresAskPrice) / futuresAskPrice) * 100;
-        const spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
+        // Só calcular spreads se tivermos preços em AMBOS mercados
+        if (hasValidSpotPrices && hasValidFuturesPrices) {
+          // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry) - ENTRADA
+          spreadGrossLong = ((futuresBidPrice - spotAskPrice) / spotAskPrice) * 100;
+          spreadNetLong = spreadGrossLong - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
-        // Detectar e registrar cruzamento (apenas spreads válidos 0-10%)
-        if (spreadNetShort > 0 && spreadNetShort <= MAX_VALID_SPREAD) {
-          await registerCrossing(baseSymbol, spreadNetShort);
-          crossingsRegistered++;
+          // DIREÇÃO 2: SHORT SPOT + LONG FUTURES (Reverse Cash and Carry) - SAÍDA
+          spreadGrossShort = ((spotBidPrice - futuresAskPrice) / futuresAskPrice) * 100;
+          spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
+
+          // Detectar e registrar cruzamento (apenas spreads válidos 0-10%)
+          if (spreadNetShort > 0 && spreadNetShort <= MAX_VALID_SPREAD) {
+            await registerCrossing(baseSymbol, spreadNetShort);
+            crossingsRegistered++;
+          }
         }
 
         opportunitiesFound++;
         
-        const fundingRate = parseFloat(futuresTicker.fundingRate) || 0;
+        const fundingRate = futuresTicker ? parseFloat(futuresTicker.fundingRate) || 0 : 0;
 
         const opp = {
           pair_symbol: baseSymbol,
           // Preços para SAÍDA (reverse cash and carry)
-          spot_bid_price: spotBidPrice,     // Vende Spot - recebe BID
-          futures_ask_price: futuresAskPrice, // Compra Futures - paga ASK
-          // Preços para ENTRADA (cash and carry) - NOVOS CAMPOS
-          spot_ask_price: spotAskPrice,     // Compra Spot - paga ASK
-          futures_bid_price: futuresBidPrice, // Vende Futures - recebe BID
+          spot_bid_price: spotBidPrice,
+          futures_ask_price: futuresAskPrice,
+          // Preços para ENTRADA (cash and carry)
+          spot_ask_price: spotAskPrice,
+          futures_bid_price: futuresBidPrice,
           // Volumes
           spot_volume_24h: spotVolume,
           futures_volume_24h: futuresVolume,
@@ -259,6 +274,7 @@ Deno.serve(async (req) => {
       }
 
       console.log(`\n📊 Resumo do processamento:`);
+      console.log(`   - Símbolos únicos (união): ${allSymbols.size}`);
       console.log(`   - Pares processados: ${pairsProcessed}`);
       console.log(`   - Oportunidades criadas: ${opportunitiesFound}`);
       console.log(`   - Cruzamentos válidos registrados: ${crossingsRegistered}`);
