@@ -7,31 +7,41 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { X, TrendingUp, TrendingDown, Play, Pause, GripVertical, Wallet, Bell, RotateCcw } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Play, Pause, GripVertical, Wallet, Bell, RotateCcw, ThumbsUp } from 'lucide-react';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useCalculatorStore, CalculatorData } from '@/hooks/useCalculatorStore';
 import { useBankroll } from '@/hooks/useBankroll';
 import { toast } from 'sonner';
-
 interface CompactArbitrageCalculatorProps {
   id: string;
   onRemove: (id: string) => void;
   isDragging?: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
 }
-
-const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps }: CompactArbitrageCalculatorProps) => {
-  const { opportunities } = useOpportunities();
-  const { rate: taxaCambioAtual } = useExchangeRate();
-  const { updateCalculator, calculators, soundEnabled } = useCalculatorStore();
-  const { addOperation } = useBankroll();
+const CompactArbitrageCalculator = ({
+  id,
+  onRemove,
+  isDragging,
+  dragHandleProps
+}: CompactArbitrageCalculatorProps) => {
+  const {
+    opportunities
+  } = useOpportunities();
+  const {
+    rate: taxaCambioAtual
+  } = useExchangeRate();
+  const {
+    updateCalculator,
+    calculators,
+    soundEnabled
+  } = useCalculatorStore();
+  const {
+    addOperation
+  } = useBankroll();
 
   // Get stored calculator data
-  const storedCalc = useMemo(() => 
-    calculators.find(c => c.id === id), 
-    [calculators, id]
-  );
+  const storedCalc = useMemo(() => calculators.find(c => c.id === id), [calculators, id]);
 
   // Local states initialized from store
   const [valorInvestido, setValorInvestido] = useState<string>(storedCalc?.valorInvestido || '');
@@ -41,19 +51,16 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
   const [entradaFuturo, setEntradaFuturo] = useState<string>(storedCalc?.entradaFuturo || '');
   const [fechamentoSpot, setFechamentoSpot] = useState<string>(storedCalc?.fechamentoSpot || '');
   const [fechamentoFuturo, setFechamentoFuturo] = useState<string>(storedCalc?.fechamentoFuturo || '');
-  const [thresholdInput, setThresholdInput] = useState<string>(
-    (storedCalc?.profitThresholdPercent ?? 0.1).toString()
-  );
+  const [thresholdInput, setThresholdInput] = useState<string>((storedCalc?.profitThresholdPercent ?? 0.1).toString());
 
   // Estados de resultado
   const [lucroUSD, setLucroUSD] = useState<number>(0);
   const [lucroBRL, setLucroBRL] = useState<number>(0);
   const [varTotal, setVarTotal] = useState<number>(0);
-  
+
   // Sound notification ref
   const lastNotifiedVarTotal = useRef<number>(0);
   const audioContextRef = useRef<AudioContext | null>(null);
-  
   const TAXA = 0.001;
 
   // Get individual threshold
@@ -69,7 +76,7 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
       fechamentoSpot,
       fechamentoFuturo,
       trackingActive,
-      currentProfit: lucroUSD,
+      currentProfit: lucroUSD
     });
   }, [selectedPair, valorInvestido, entradaSpot, entradaFuturo, fechamentoSpot, fechamentoFuturo, trackingActive, lucroUSD, id, updateCalculator]);
 
@@ -80,7 +87,6 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
       lastNotifiedVarTotal.current = varTotal;
     }
   }, [varTotal, profitThresholdPercent, soundEnabled]);
-
   const playProfitSound = () => {
     try {
       if (!audioContextRef.current) {
@@ -89,16 +95,12 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
       const ctx = audioContextRef.current;
       const oscillator = ctx.createOscillator();
       const gainNode = ctx.createGain();
-      
       oscillator.connect(gainNode);
       gainNode.connect(ctx.destination);
-      
       oscillator.frequency.setValueAtTime(880, ctx.currentTime); // A5
       oscillator.type = 'sine';
-      
       gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-      
       oscillator.start(ctx.currentTime);
       oscillator.stop(ctx.currentTime + 0.3);
     } catch (e) {
@@ -116,53 +118,35 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
     if (selectedOpp && trackingActive) {
       setFechamentoSpot(selectedOpp.spot_bid_price.toString());
       setFechamentoFuturo(selectedOpp.futures_ask_price.toString());
-      calcular(
-        parseFloat(valorInvestido) || 0,
-        parseFloat(entradaSpot) || 0,
-        parseFloat(entradaFuturo) || 0,
-        selectedOpp.spot_bid_price,
-        selectedOpp.futures_ask_price
-      );
+      calcular(parseFloat(valorInvestido) || 0, parseFloat(entradaSpot) || 0, parseFloat(entradaFuturo) || 0, selectedOpp.spot_bid_price, selectedOpp.futures_ask_price);
     }
   }, [selectedOpp?.spot_bid_price, selectedOpp?.futures_ask_price, trackingActive, valorInvestido, entradaSpot, entradaFuturo]);
-
-  const calcular = (
-    valor?: number,
-    spotEntrada?: number,
-    futuroEntrada?: number,
-    spotFechamento?: number,
-    futuroFechamento?: number
-  ) => {
+  const calcular = (valor?: number, spotEntrada?: number, futuroEntrada?: number, spotFechamento?: number, futuroFechamento?: number) => {
     const v = valor !== undefined ? valor : parseFloat(valorInvestido) || 0;
     const sE = spotEntrada !== undefined ? spotEntrada : parseFloat(entradaSpot) || 0;
     const fE = futuroEntrada !== undefined ? futuroEntrada : parseFloat(entradaFuturo) || 0;
     const sF = spotFechamento !== undefined ? spotFechamento : parseFloat(fechamentoSpot) || 0;
     const fF = futuroFechamento !== undefined ? futuroFechamento : parseFloat(fechamentoFuturo) || 0;
-
     if (!v || !sE || !fE) {
       setLucroUSD(0);
       setLucroBRL(0);
       setVarTotal(0);
       return;
     }
-
     const variacaoEntrada = fE / sE - 1;
     const variacaoFechamento = sF > 0 && fF > 0 ? (sF - fF) / sF : 0;
     const variacaoTotal = variacaoEntrada + variacaoFechamento;
     const lucroEmUSD = v * variacaoTotal * (1 - TAXA);
     const lucroEmBRL = lucroEmUSD * taxaCambioAtual;
-
     setLucroUSD(lucroEmUSD);
     setLucroBRL(lucroEmBRL);
     setVarTotal(variacaoTotal * 100);
   };
-
   const handleSaveToBank = () => {
     if (!valorInvestido || lucroUSD === 0) {
       toast.error('Calcule uma operação antes de salvar');
       return;
     }
-    
     addOperation({
       operation_type: 'trade',
       amount_usdt: parseFloat(valorInvestido),
@@ -171,45 +155,37 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
       pair_symbol: selectedPair || 'N/A',
       notes: `Gerenciamento - Var: ${varTotal.toFixed(4)}%`
     });
-    
     toast.success('Operação salva na banca!');
   };
-
   const handleThresholdChange = (value: string) => {
     setThresholdInput(value);
     const numValue = parseFloat(value);
     if (!isNaN(numValue) && numValue >= 0) {
-      updateCalculator(id, { profitThresholdPercent: numValue });
+      updateCalculator(id, {
+        profitThresholdPercent: numValue
+      });
     }
   };
-
   const spreadEntrada = useMemo(() => {
     if (!entradaSpot || !entradaFuturo) return 0;
     const sE = parseFloat(entradaSpot);
     const fE = parseFloat(entradaFuturo);
     return (fE / sE - 1) * 100;
   }, [entradaSpot, entradaFuturo]);
-
   const spreadSaida = useMemo(() => {
     if (!fechamentoSpot || !fechamentoFuturo) return 0;
     const sF = parseFloat(fechamentoSpot);
     const fF = parseFloat(fechamentoFuturo);
     if (sF <= 0 || fF <= 0) return 0;
-    return ((sF - fF) / sF) * 100;
+    return (sF - fF) / sF * 100;
   }, [fechamentoSpot, fechamentoFuturo]);
-
   const showProfitAlert = varTotal > 0 && varTotal >= profitThresholdPercent;
-
-  return (
-    <Card className={`bg-gradient-card border-border/50 hover:border-primary/30 transition-all ${isDragging ? 'opacity-50 scale-105' : ''}`}>
+  return <Card className={`bg-gradient-card border-border/50 hover:border-primary/30 transition-all ${isDragging ? 'opacity-50 scale-105' : ''}`}>
       <CardHeader className="p-3 pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {/* Drag Handle */}
-            <div 
-              {...dragHandleProps}
-              className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-muted-foreground hover:text-foreground"
-            >
+            <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-muted-foreground hover:text-foreground">
               <GripVertical className="w-4 h-4" />
             </div>
             <Select value={selectedPair} onValueChange={setSelectedPair}>
@@ -217,56 +193,40 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
                 <SelectValue placeholder="Par..." />
               </SelectTrigger>
               <SelectContent>
-                {opportunities.map(opp => (
-                  <SelectItem key={opp.pair_symbol} value={opp.pair_symbol}>
+                {opportunities.map(opp => <SelectItem key={opp.pair_symbol} value={opp.pair_symbol}>
                     <span className="font-mono text-xs">{opp.pair_symbol}</span>
-                  </SelectItem>
-                ))}
+                  </SelectItem>)}
               </SelectContent>
             </Select>
-            {trackingActive && (
-              <Badge variant="outline" className="bg-profit/10 text-profit text-[10px] animate-pulse">
+            {trackingActive && <Badge variant="outline" className="bg-profit/10 text-profit text-[10px] animate-pulse">
                 LIVE
-              </Badge>
-            )}
-            {showProfitAlert && (
-              <Badge variant="outline" className="bg-gold/20 text-gold text-[10px] animate-pulse">
+              </Badge>}
+            {showProfitAlert && <Badge variant="outline" className="bg-gold/20 text-gold text-[10px] animate-pulse">
                 <Bell className="w-2.5 h-2.5 mr-0.5" />
                 %
-              </Badge>
-            )}
+              </Badge>}
           </div>
           <div className="flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setValorInvestido('');
-                    setEntradaSpot('');
-                    setEntradaFuturo('');
-                    setFechamentoSpot('');
-                    setFechamentoFuturo('');
-                    setTrackingActive(false);
-                    setLucroUSD(0);
-                    setLucroBRL(0);
-                    setVarTotal(0);
-                    lastNotifiedVarTotal.current = 0;
-                  }}
-                  className="h-6 w-6 text-muted-foreground hover:text-warning"
-                >
+                <Button variant="ghost" size="icon" onClick={() => {
+                setValorInvestido('');
+                setEntradaSpot('');
+                setEntradaFuturo('');
+                setFechamentoSpot('');
+                setFechamentoFuturo('');
+                setTrackingActive(false);
+                setLucroUSD(0);
+                setLucroBRL(0);
+                setVarTotal(0);
+                lastNotifiedVarTotal.current = 0;
+              }} className="h-6 w-6 text-muted-foreground hover:text-warning">
                   <RotateCcw className="w-3 h-3" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Resetar campos</TooltipContent>
             </Tooltip>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onRemove(id)}
-              className="h-6 w-6 text-muted-foreground hover:text-destructive"
-            >
+            <Button variant="ghost" size="icon" onClick={() => onRemove(id)} className="h-6 w-6 text-muted-foreground hover:text-destructive">
               <X className="w-4 h-4" />
             </Button>
           </div>
@@ -276,118 +236,58 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
         {/* Valor Investido */}
         <div className="space-y-1">
           <Label className="text-[10px] text-muted-foreground">Valor (USDT)</Label>
-          <Input
-            type="number"
-            placeholder="0.00"
-            value={valorInvestido}
-            onChange={e => setValorInvestido(e.target.value)}
-            className="h-8 text-sm font-mono"
-          />
+          <Input type="number" placeholder="0.00" value={valorInvestido} onChange={e => setValorInvestido(e.target.value)} className="h-8 text-sm font-mono" />
         </div>
 
         {/* Grid de Preços */}
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Entrada Spot</Label>
-            <Input
-              type="number"
-              placeholder="0.00"
-              value={entradaSpot}
-              onChange={e => setEntradaSpot(e.target.value)}
-              className="h-7 text-xs font-mono"
-            />
+            <Input type="number" placeholder="0.00" value={entradaSpot} onChange={e => setEntradaSpot(e.target.value)} className="h-7 text-xs font-mono" />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Entrada Futuro</Label>
-            <Input
-              type="number"
-              placeholder="0.00"
-              value={entradaFuturo}
-              onChange={e => setEntradaFuturo(e.target.value)}
-              className="h-7 text-xs font-mono"
-            />
+            <Input type="number" placeholder="0.00" value={entradaFuturo} onChange={e => setEntradaFuturo(e.target.value)} className="h-7 text-xs font-mono" />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Fech. Spot</Label>
-            <Input
-              type="number"
-              placeholder="0.00"
-              value={fechamentoSpot}
-              onChange={e => setFechamentoSpot(e.target.value)}
-              className="h-7 text-xs font-mono"
-              disabled={trackingActive}
-            />
+            <Input type="number" placeholder="0.00" value={fechamentoSpot} onChange={e => setFechamentoSpot(e.target.value)} className="h-7 text-xs font-mono" disabled={trackingActive} />
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] text-muted-foreground">Fech. Futuro</Label>
-            <Input
-              type="number"
-              placeholder="0.00"
-              value={fechamentoFuturo}
-              onChange={e => setFechamentoFuturo(e.target.value)}
-              className="h-7 text-xs font-mono"
-              disabled={trackingActive}
-            />
+            <Input type="number" placeholder="0.00" value={fechamentoFuturo} onChange={e => setFechamentoFuturo(e.target.value)} className="h-7 text-xs font-mono" disabled={trackingActive} />
           </div>
         </div>
 
         {/* Toggle de Tracking + Threshold Individual */}
-        {selectedPair && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-accent/20">
+        {selectedPair && <div className="space-y-2">
+            <div className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-accent/20 mr-[250px]">
               <div className="flex items-center gap-1">
-                {trackingActive ? (
-                  <Play className="w-3 h-3 text-profit" />
-                ) : (
-                  <Pause className="w-3 h-3 text-muted-foreground" />
-                )}
+                {trackingActive ? <Play className="w-3 h-3 text-profit" /> : <Pause className="w-3 h-3 text-muted-foreground" />}
                 <Label htmlFor={`tracking-${id}`} className="text-[10px] cursor-pointer">
                   Auto tracking
                 </Label>
               </div>
-              <Switch
-                id={`tracking-${id}`}
-                checked={trackingActive}
-                onCheckedChange={setTrackingActive}
-                className="scale-75"
-              />
+              <Switch id={`tracking-${id}`} checked={trackingActive} onCheckedChange={setTrackingActive} className="scale-75" />
             </div>
             
             {/* Threshold Individual */}
-            <div className="flex items-center gap-2 p-2 rounded-md border border-border/50 bg-accent/20">
+            <div className="gap-2 p-2 rounded-md border border-border/50 bg-accent/20 flex items-center justify-start mr-[250px] pr-[5px]">
               <Bell className="w-3 h-3 text-muted-foreground" />
               <Label className="text-[10px]">Alerta:</Label>
-              <Input
-                type="number"
-                value={thresholdInput}
-                onChange={(e) => handleThresholdChange(e.target.value)}
-                className="h-6 w-16 text-xs font-mono"
-                step="0.01"
-                min="0"
-              />
+              <Input type="number" value={thresholdInput} onChange={e => handleThresholdChange(e.target.value)} className="h-6 w-16 text-xs font-mono" step="0.01" min="0" />
               <span className="text-[10px] text-muted-foreground">%</span>
             </div>
-          </div>
-        )}
+          </div>}
 
         {/* Botões */}
         <div className="flex gap-2">
-          <Button
-            onClick={() => calcular()}
-            className="flex-1 h-8 text-xs bg-gradient-primary"
-            disabled={trackingActive}
-          >
+          <Button onClick={() => calcular()} className="flex-1 h-8 text-xs bg-gradient-primary" disabled={trackingActive}>
             {trackingActive ? 'Auto...' : 'Calcular'}
           </Button>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                onClick={handleSaveToBank}
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 bg-gold/10 text-gold border-gold/30 hover:bg-gold/20"
-                disabled={lucroUSD === 0}
-              >
+              <Button onClick={handleSaveToBank} variant="outline" size="icon" className="h-8 w-8 bg-gold/10 text-gold border-gold/30 hover:bg-gold/20" disabled={lucroUSD === 0}>
                 <Wallet className="w-4 h-4" />
               </Button>
             </TooltipTrigger>
@@ -399,28 +299,14 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
         <div className={`p-2 rounded-md border border-border/50 ${showProfitAlert ? 'bg-profit/10 border-profit/30' : 'bg-accent/30'}`}>
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-muted-foreground">Spread Entrada:</span>
-            <Badge
-              variant="outline"
-              className={`text-[10px] px-1.5 py-0 ${
-                spreadEntrada >= 0
-                  ? 'bg-profit/20 text-profit border-profit/30'
-                  : 'bg-negative-subtle text-negative border-red-500/30'
-              }`}
-            >
-              {spreadEntrada >= 0 ? <TrendingUp className="w-2 h-2 mr-0.5" /> : <TrendingDown className="w-2 h-2 mr-0.5" />}
+            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${spreadEntrada >= 0 ? 'bg-profit/20 text-profit border-profit/30' : 'bg-negative-subtle text-negative border-red-500/30'}`}>
+              {spreadEntrada >= 0 ? <ThumbsUp className="w-2 h-2 mr-0.5" /> : <TrendingDown className="w-2 h-2 mr-0.5" />}
               {spreadEntrada.toFixed(4)}%
             </Badge>
           </div>
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-muted-foreground">Spread Saída:</span>
-            <Badge
-              variant="outline"
-              className={`text-[10px] px-1.5 py-0 ${
-                spreadSaida >= 0
-                  ? 'bg-profit/20 text-profit border-profit/30'
-                  : 'bg-negative-subtle text-negative border-red-500/30'
-              }`}
-            >
+            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${spreadSaida >= 0 ? 'bg-profit/20 text-profit border-profit/30' : 'bg-negative-subtle text-negative border-red-500/30'}`}>
               {spreadSaida >= 0 ? <TrendingUp className="w-2 h-2 mr-0.5" /> : <TrendingDown className="w-2 h-2 mr-0.5" />}
               {spreadSaida.toFixed(4)}%
             </Badge>
@@ -446,8 +332,6 @@ const CompactArbitrageCalculator = ({ id, onRemove, isDragging, dragHandleProps 
           </div>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>;
 };
-
 export default CompactArbitrageCalculator;
