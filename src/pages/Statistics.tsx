@@ -8,6 +8,8 @@ import CrossingKPICards from '@/components/CrossingKPICards';
 import CrossingTimeSeriesChart from '@/components/CrossingTimeSeriesChart';
 import CrossingHourDistribution from '@/components/CrossingHourDistribution';
 import CrossingRankingTable from '@/components/CrossingRankingTable';
+import { StarBackground } from '@/components/StarBackground';
+import { PageTransition } from '@/components/PageTransition';
 import { useStatistics, Period } from '@/hooks/useStatistics';
 import { toast } from 'sonner';
 
@@ -43,53 +45,56 @@ const Statistics = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-dark">
+    <div className="min-h-screen bg-background relative">
+      <StarBackground />
       <DashboardHeader />
       
-      <main className="container mx-auto px-4 py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">Estatísticas de Cruzamentos</h1>
-              <p className="text-sm text-muted-foreground">
-                Análise detalhada dos spreads de saída
-              </p>
+      <PageTransition>
+        <main className="container mx-auto px-4 py-6 space-y-6 relative z-10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="hover:bg-primary/10">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-gradient-gold">Estatísticas de Cruzamentos</h1>
+                <p className="text-sm text-muted-foreground">
+                  Análise detalhada dos spreads de saída
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading} className="hover:border-primary/50">
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Atualizar
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExport} className="hover:border-gold/50">
+                <Download className="w-4 h-4 mr-2" />
+                Exportar
+              </Button>
             </div>
           </div>
-          
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Atualizar
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />
-              Exportar
-            </Button>
+
+          {/* Filtros */}
+          <StatisticsFilters
+            period={period}
+            onPeriodChange={setPeriod}
+          />
+
+          {/* KPIs */}
+          <CrossingKPICards data={kpiData} loading={loading} />
+
+          {/* Gráficos */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <CrossingTimeSeriesChart data={timeSeriesData} loading={loading} period={period} />
+            <CrossingHourDistribution data={hourDistribution} loading={loading} />
           </div>
-        </div>
 
-        {/* Filtros */}
-        <StatisticsFilters
-          period={period}
-          onPeriodChange={setPeriod}
-        />
-
-        {/* KPIs */}
-        <CrossingKPICards data={kpiData} loading={loading} />
-
-        {/* Gráficos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <CrossingTimeSeriesChart data={timeSeriesData} loading={loading} period={period} />
-          <CrossingHourDistribution data={hourDistribution} loading={loading} />
-        </div>
-
-        {/* Ranking */}
-        <CrossingRankingTable data={coinRanking} loading={loading} />
-      </main>
+          {/* Ranking */}
+          <CrossingRankingTable data={coinRanking} loading={loading} />
+        </main>
+      </PageTransition>
     </div>
   );
 };
