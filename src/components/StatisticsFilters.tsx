@@ -1,7 +1,7 @@
 import { Period } from '@/hooks/useStatistics';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Calendar, Filter } from 'lucide-react';
+import { Clock, Filter } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -13,12 +13,6 @@ import {
 interface StatisticsFiltersProps {
   period: Period;
   onPeriodChange: (period: Period) => void;
-  customStart?: Date;
-  customEnd?: Date;
-  onCustomStartChange: (date?: Date) => void;
-  onCustomEndChange: (date?: Date) => void;
-  filterCoins: string[];
-  onFilterCoinsChange: (coins: string[]) => void;
 }
 
 const StatisticsFilters = ({
@@ -36,15 +30,17 @@ const StatisticsFilters = ({
 
           {/* Período */}
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <Clock className="w-4 h-4 text-muted-foreground" />
             <Select value={period} onValueChange={(value) => onPeriodChange(value as Period)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Selecione o período" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="today">Hoje (24h)</SelectItem>
-                <SelectItem value="week">Esta Semana (7d)</SelectItem>
-                <SelectItem value="month">Este Mês (30d)</SelectItem>
+                <SelectItem value="15min">15 minutos</SelectItem>
+                <SelectItem value="30min">30 minutos</SelectItem>
+                <SelectItem value="1h">1 hora</SelectItem>
+                <SelectItem value="3h">3 horas</SelectItem>
+                <SelectItem value="24h">24 horas</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -53,7 +49,7 @@ const StatisticsFilters = ({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => onPeriodChange('today')}
+            onClick={() => onPeriodChange('24h')}
           >
             Limpar filtros
           </Button>

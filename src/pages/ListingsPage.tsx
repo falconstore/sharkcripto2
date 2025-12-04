@@ -20,10 +20,11 @@ import DashboardHeader from '@/components/DashboardHeader';
 const ListingsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isAdmin, loading: adminLoading } = useAdmin();
-  const { newListings, delistings, loading, addListing, deleteListing } = useCoinListings();
+  const { isAdmin } = useAdmin();
+  const { newListings, delistings, loading, addListing, updateListing, deleteListing } = useCoinListings();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingListing, setEditingListing] = useState<CoinListing | null>(null);
   const [formData, setFormData] = useState({
     coin_name: '',
     pair_symbol: '',
@@ -38,27 +39,61 @@ const ListingsPage = () => {
     return null;
   }
 
+  const resetForm = () => {
+    setFormData({
+      coin_name: '',
+      pair_symbol: '',
+      listing_type: 'new',
+      scheduled_date: '',
+      scheduled_time: '',
+    });
+    setEditingListing(null);
+  };
+
+  const openEditDialog = (listing: CoinListing) => {
+    const date = new Date(listing.scheduled_date);
+    setEditingListing(listing);
+    setFormData({
+      coin_name: listing.coin_name,
+      pair_symbol: listing.pair_symbol,
+      listing_type: listing.listing_type as 'new' | 'delist',
+      scheduled_date: date.toISOString().split('T')[0],
+      scheduled_time: date.toTimeString().slice(0, 5),
+    });
+    setDialogOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const scheduledDateTime = `${formData.scheduled_date}T${formData.scheduled_time}:00`;
     
-    const success = await addListing({
-      coin_name: formData.coin_name,
-      pair_symbol: formData.pair_symbol.toUpperCase(),
-      listing_type: formData.listing_type,
-      scheduled_date: scheduledDateTime,
-    });
-
-    if (success) {
-      setDialogOpen(false);
-      setFormData({
-        coin_name: '',
-        pair_symbol: '',
-        listing_type: 'new',
-        scheduled_date: '',
-        scheduled_time: '',
+    if (editingListing) {
+      // Atualizar listagem existente
+      const success = await updateListing(editingListing.id, {
+        coin_name: formData.coin_name,
+        pair_symbol: formData.pair_symbol.toUpperCase(),
+        listing_type: formData.listing_type,
+        scheduled_date: scheduledDateTime,
       });
+
+      if (success) {
+        setDialogOpen(false);
+        resetForm();
+      }
+    } else {
+      // Criar nova listagem
+      const success = await addListing({
+        coin_name: formData.coin_name,
+        pair_symbol: formData.pair_symbol.toUpperCase(),
+        listing_type: formData.listing_type,
+        scheduled_date: scheduledDateTime,
+      });
+
+      if (success) {
+        setDialogOpen(false);
+        resetForm();
+      }
     }
   };
 
@@ -85,7 +120,7 @@ const ListingsPage = () => {
           <TableHead>Par</TableHead>
           <TableHead>Data/Hora</TableHead>
           <TableHead>Status</TableHead>
-          {isAdmin && <TableHead className="w-[100px]">Ações</TableHead>}
+          {isAdmin && <TableHead className="w-[120px]">Ações</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -124,14 +159,24 @@ const ListingsPage = () => {
               </TableCell>
               {isAdmin && (
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(listing.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEditDialog(listing)}
+                      className="h-8 w-8"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(listing.id)}
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               )}
             </TableRow>
@@ -160,7 +205,10 @@ const ListingsPage = () => {
           </div>
 
           {isAdmin && (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (!open) resetForm();
+            }}>
               <DialogTrigger asChild>
                 <Button className="bg-gradient-primary">
                   <Plus className="w-4 h-4 mr-2" />
@@ -169,7 +217,9 @@ const ListingsPage = () => {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Adicionar Listagem/Deslistagem</DialogTitle>
+                  <DialogTitle>
+                    {editingListing ? 'Editar Listagem' : 'Adicionar Listagem/Deslistagem'}
+                  </DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
@@ -246,11 +296,14 @@ const ListingsPage = () => {
                   </div>
 
                   <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                    <Button type="button" variant="outline" onClick={() => {
+                      setDialogOpen(false);
+                      resetForm();
+                    }}>
                       Cancelar
                     </Button>
                     <Button type="submit" className="bg-gradient-primary">
-                      Adicionar
+                      {editingListing ? 'Salvar' : 'Adicionar'}
                     </Button>
                   </DialogFooter>
                 </form>

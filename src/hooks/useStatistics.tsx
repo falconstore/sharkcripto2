@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-export type Period = 'today' | 'week' | 'month' | 'custom';
+export type Period = '15min' | '30min' | '1h' | '3h' | '24h';
 export type SortBy = 'crossings' | 'spread' | 'name';
 
 export interface TimeSeriesData {
@@ -24,34 +24,39 @@ export interface CoinRankingItem {
 export interface KPIData {
   totalCrossings: number;
   topCoin: { symbol: string; count: number } | null;
-  avgCrossingsPerDay: number;
+  avgCrossingsPerHour: number;
   bestSpread: number;
 }
 
-const getPeriodInterval = (period: Period, customStart?: Date, customEnd?: Date): string => {
-  if (period === 'custom' && customStart && customEnd) {
-    return `timestamp BETWEEN '${customStart.toISOString()}' AND '${customEnd.toISOString()}'`;
-  }
-  
-  const intervals = {
-    today: "timestamp >= NOW() - INTERVAL '24 hours'",
-    week: "timestamp >= NOW() - INTERVAL '7 days'",
-    month: "timestamp >= NOW() - INTERVAL '30 days'",
+const getPeriodMs = (period: Period): number => {
+  const intervals: Record<Period, number> = {
+    '15min': 15 * 60 * 1000,
+    '30min': 30 * 60 * 1000,
+    '1h': 60 * 60 * 1000,
+    '3h': 3 * 60 * 60 * 1000,
+    '24h': 24 * 60 * 60 * 1000,
   };
-  
-  return intervals[period] || intervals.today;
+  return intervals[period];
+};
+
+const getStartTimestamp = (period: Period): string => {
+  const ms = getPeriodMs(period);
+  return new Date(Date.now() - ms).toISOString();
+};
+
+// Validação: só considerar spreads entre 0% e 10%
+const isValidSpread = (spread: number): boolean => {
+  return spread >= 0 && spread <= 10;
 };
 
 export const useStatistics = (
-  period: Period = 'today',
-  customStart?: Date,
-  customEnd?: Date,
+  period: Period = '24h',
   blacklist: Set<string> = new Set()
 ) => {
   const [kpiData, setKpiData] = useState<KPIData>({
     totalCrossings: 0,
     topCoin: null,
-    avgCrossingsPerDay: 0,
+    avgCrossingsPerHour: 0,
     bestSpread: 0,
   });
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData[]>([]);
@@ -62,50 +67,46 @@ export const useStatistics = (
 
   const fetchKPIs = async () => {
     try {
-      const whereClause = getPeriodInterval(period, customStart, customEnd);
+      const startTime = getStartTimestamp(period);
       
-      // Total de cruzamentos
-      const { count: totalCrossings } = await supabase
+      // Total de cruzamentos (com spread válido)
+      const { data: allData } = await supabase
         .from('pair_crossings')
-        .select('*', { count: 'exact', head: true })
-        .gte('timestamp', period === 'today' ? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() : 
-             period === 'week' ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() :
-             new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+        .select('pair_symbol, spread_net_percent_saida')
+        .gte('timestamp', startTime)
+        .lte('spread_net_percent_saida', 10)
+        .gte('spread_net_percent_saida', 0);
+
+      // Filtrar blacklist e contar
+      const filteredData = allData?.filter(item => !blacklist.has(item.pair_symbol)) || [];
+      const totalCrossings = filteredData.length;
 
       // Moeda campeã
-      const { data: topCoinData } = await supabase
-        .from('pair_crossings')
-        .select('pair_symbol')
-        .gte('timestamp', period === 'today' ? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() : 
-             period === 'week' ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() :
-             new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
-
       const coinCounts: { [key: string]: number } = {};
-      topCoinData?.forEach((item) => {
-        if (blacklist.has(item.pair_symbol)) return; // Filtrar blacklist
+      filteredData.forEach((item) => {
         coinCounts[item.pair_symbol] = (coinCounts[item.pair_symbol] || 0) + 1;
       });
 
       const topCoin = Object.entries(coinCounts).sort((a, b) => b[1] - a[1])[0];
 
-      // Melhor spread
-      const { data: bestSpreadData } = await supabase
-        .from('pair_crossings')
-        .select('spread_net_percent_saida')
-        .gte('timestamp', period === 'today' ? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() : 
-             period === 'week' ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() :
-             new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .order('spread_net_percent_saida', { ascending: false })
-        .limit(1)
-        .single();
+      // Melhor spread (válido)
+      const validSpreads = filteredData
+        .map(item => item.spread_net_percent_saida)
+        .filter(isValidSpread);
+      
+      const bestSpread = validSpreads.length > 0 
+        ? Math.max(...validSpreads) 
+        : 0;
 
-      const days = period === 'today' ? 1 : period === 'week' ? 7 : 30;
+      // Calcular média por hora
+      const periodHours = getPeriodMs(period) / (60 * 60 * 1000);
+      const avgCrossingsPerHour = totalCrossings / periodHours;
       
       setKpiData({
-        totalCrossings: totalCrossings || 0,
+        totalCrossings,
         topCoin: topCoin ? { symbol: topCoin[0], count: topCoin[1] } : null,
-        avgCrossingsPerDay: (totalCrossings || 0) / days,
-        bestSpread: bestSpreadData?.spread_net_percent_saida || 0,
+        avgCrossingsPerHour,
+        bestSpread: Math.min(bestSpread, 10), // Limitar exibição a 10%
       });
     } catch (err) {
       console.error('Erro ao buscar KPIs:', err);
@@ -114,12 +115,14 @@ export const useStatistics = (
 
   const fetchCoinRanking = async (sortBy: SortBy = 'crossings') => {
     try {
+      const startTime = getStartTimestamp(period);
+      
       const { data, error } = await supabase
         .from('pair_crossings')
         .select('pair_symbol, spread_net_percent_saida, timestamp')
-        .gte('timestamp', period === 'today' ? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() : 
-             period === 'week' ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() :
-             new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+        .gte('timestamp', startTime)
+        .lte('spread_net_percent_saida', 10)
+        .gte('spread_net_percent_saida', 0)
         .order('timestamp', { ascending: false });
 
       if (error) throw error;
@@ -128,7 +131,9 @@ export const useStatistics = (
       const grouped: { [key: string]: { count: number; spreads: number[]; lastTime: string } } = {};
       
       data?.forEach((item) => {
-        if (blacklist.has(item.pair_symbol)) return; // Filtrar blacklist
+        if (blacklist.has(item.pair_symbol)) return;
+        if (!isValidSpread(item.spread_net_percent_saida)) return;
+        
         if (!grouped[item.pair_symbol]) {
           grouped[item.pair_symbol] = { count: 0, spreads: [], lastTime: item.timestamp };
         }
@@ -164,32 +169,34 @@ export const useStatistics = (
 
   const fetchTimeSeries = async (topN: number = 5) => {
     try {
-      // Buscar top N moedas
       const topCoins = coinRanking.slice(0, topN).map(c => c.pair_symbol);
       
       if (topCoins.length === 0) return;
 
+      const startTime = getStartTimestamp(period);
+      
       const { data, error } = await supabase
         .from('pair_crossings')
         .select('pair_symbol, timestamp')
-        .gte('timestamp', period === 'today' ? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() : 
-             period === 'week' ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() :
-             new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+        .gte('timestamp', startTime)
+        .lte('spread_net_percent_saida', 10)
+        .gte('spread_net_percent_saida', 0)
         .in('pair_symbol', topCoins)
         .order('timestamp', { ascending: true });
 
       if (error) throw error;
 
-      // Agrupar por hora/dia
-      const timeFormat = period === 'today' ? 'hour' : 'day';
+      // Agrupar por intervalo de tempo apropriado
+      const periodMs = getPeriodMs(period);
+      const intervalMinutes = periodMs <= 60 * 60 * 1000 ? 5 : periodMs <= 3 * 60 * 60 * 1000 ? 15 : 60;
+      
       const grouped: { [key: string]: { [coin: string]: number } } = {};
 
       data?.forEach((item) => {
-        if (blacklist.has(item.pair_symbol)) return; // Filtrar blacklist
+        if (blacklist.has(item.pair_symbol)) return;
         const date = new Date(item.timestamp);
-        const key = timeFormat === 'hour' 
-          ? `${date.getHours()}:00`
-          : date.toLocaleDateString('pt-BR');
+        const minutes = Math.floor(date.getMinutes() / intervalMinutes) * intervalMinutes;
+        const key = `${date.getHours().toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 
         if (!grouped[key]) {
           grouped[key] = {};
@@ -211,19 +218,20 @@ export const useStatistics = (
 
   const fetchHourDistribution = async () => {
     try {
+      const startTime = getStartTimestamp(period);
+      
       const { data, error } = await supabase
         .from('pair_crossings')
         .select('timestamp')
-        .gte('timestamp', period === 'today' ? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() : 
-             period === 'week' ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() :
-             new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+        .gte('timestamp', startTime)
+        .lte('spread_net_percent_saida', 10)
+        .gte('spread_net_percent_saida', 0);
 
       if (error) throw error;
 
       const hourCounts: { [hour: number]: number } = {};
       
       data?.forEach((item) => {
-        // Não filtrar blacklist aqui para manter distribuição geral de horários
         const hour = new Date(item.timestamp).getHours();
         hourCounts[hour] = (hourCounts[hour] || 0) + 1;
       });
@@ -255,7 +263,7 @@ export const useStatistics = (
     };
 
     fetchAll();
-  }, [period, customStart, customEnd]);
+  }, [period]);
 
   useEffect(() => {
     if (coinRanking.length > 0) {
