@@ -5,7 +5,7 @@ import { usePreferences } from '@/hooks/usePreferences';
 import { useAdmin } from '@/hooks/useAdmin';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, TrendingUp, BarChart3, Bell, Ban, Target, Wallet, ListChecks, Shield, Users } from 'lucide-react';
+import { LogOut, TrendingUp, BarChart3, Bell, Ban, Target, Wallet, ListChecks, Shield, Users, Calculator } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationSettings from './NotificationSettings';
@@ -78,6 +78,15 @@ const DashboardHeader = () => {
               >
                 <BarChart3 className="w-4 h-4 mr-2" />
                 Estatísticas
+              </Button>
+
+              <Button
+                variant={isActivePath('/management') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/management')}
+              >
+                <Calculator className="w-4 h-4 mr-2" />
+                Gerenciamento
               </Button>
 
               {isAdmin && (
@@ -216,6 +225,14 @@ const DashboardHeader = () => {
             onClick={() => navigate('/statistics')}
           >
             <BarChart3 className="w-4 h-4" />
+          </Button>
+
+          <Button
+            variant={isActivePath('/management') ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => navigate('/management')}
+          >
+            <Calculator className="w-4 h-4" />
           </Button>
 
           {isAdmin && (
