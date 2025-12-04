@@ -172,11 +172,11 @@ Deno.serve(async (req) => {
         pairsProcessed++;
 
         // Parse preços com validação
-        const spotBidPrice = parseFloat(spotTicker.bidPrice);
-        const spotAskPrice = parseFloat(spotTicker.askPrice);
+        const spotBidPrice = parseFloat(spotTicker.bidPrice);  // Preço de VENDA do spot (para saída)
+        const spotAskPrice = parseFloat(spotTicker.askPrice);  // Preço de COMPRA do spot (para entrada)
         const spotVolume = parseFloat(spotTicker.quoteVolume) || 0;
-        const futuresBidPrice = parseFloat(futuresTicker.bid1);
-        const futuresAskPrice = parseFloat(futuresTicker.ask1);
+        const futuresBidPrice = parseFloat(futuresTicker.bid1); // Preço de VENDA do futures (para entrada)
+        const futuresAskPrice = parseFloat(futuresTicker.ask1); // Preço de COMPRA do futures (para saída)
         const futuresVolume = parseFloat(futuresTicker.volume24) || 0;
 
         // Validação: ignorar preços inválidos
@@ -186,10 +186,12 @@ Deno.serve(async (req) => {
         }
 
         // DIREÇÃO 1: LONG SPOT + SHORT FUTURES (Cash and Carry) - ENTRADA
+        // Compra Spot (paga ASK) + Vende Futures (recebe BID)
         const spreadGrossLong = ((futuresBidPrice - spotAskPrice) / spotAskPrice) * 100;
         const spreadNetLong = spreadGrossLong - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
         // DIREÇÃO 2: SHORT SPOT + LONG FUTURES (Reverse Cash and Carry) - SAÍDA
+        // Vende Spot (recebe BID) + Compra Futures (paga ASK)
         const spreadGrossShort = ((spotBidPrice - futuresAskPrice) / futuresAskPrice) * 100;
         const spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
@@ -205,14 +207,21 @@ Deno.serve(async (req) => {
 
         const opp = {
           pair_symbol: baseSymbol,
-          spot_bid_price: spotBidPrice,
+          // Preços para SAÍDA (reverse cash and carry)
+          spot_bid_price: spotBidPrice,     // Vende Spot - recebe BID
+          futures_ask_price: futuresAskPrice, // Compra Futures - paga ASK
+          // Preços para ENTRADA (cash and carry) - NOVOS CAMPOS
+          spot_ask_price: spotAskPrice,     // Compra Spot - paga ASK
+          futures_bid_price: futuresBidPrice, // Vende Futures - recebe BID
+          // Volumes
           spot_volume_24h: spotVolume,
-          futures_ask_price: futuresAskPrice,
           futures_volume_24h: futuresVolume,
+          // Spreads
           spread_gross_percent: spreadGrossLong,
           spread_net_percent: spreadNetLong,
           spread_net_percent_entrada: spreadNetLong,
           spread_net_percent_saida: spreadNetShort,
+          // Taxas
           spot_taker_fee: SPOT_TAKER_FEE,
           futures_taker_fee: FUTURES_TAKER_FEE,
           funding_rate: fundingRate,
@@ -221,6 +230,35 @@ Deno.serve(async (req) => {
         };
         
         opportunities.push(opp);
+      }
+
+      // Salvar no banco de dados
+      if (opportunities.length > 0) {
+        console.log(`\n💾 Salvando ${opportunities.length} oportunidades no banco...`);
+        
+        // Desativar oportunidades antigas
+        const { error: updateError } = await supabase
+          .from('arbitrage_opportunities')
+          .update({ is_active: false })
+          .eq('is_active', true);
+
+        if (updateError) {
+          console.error('Erro ao desativar oportunidades antigas:', updateError);
+        }
+
+        // Inserir novas oportunidades
+        const { error: insertError } = await supabase
+          .from('arbitrage_opportunities')
+          .upsert(opportunities, { 
+            onConflict: 'pair_symbol',
+            ignoreDuplicates: false 
+          });
+
+        if (insertError) {
+          console.error('Erro ao inserir oportunidades:', insertError);
+        } else {
+          console.log(`✅ ${opportunities.length} oportunidades salvas com sucesso`);
+        }
       }
 
       console.log(`\n📊 Resumo do processamento:`);

@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Users, UserCheck, UserX, Clock, CheckCircle, XCircle, Rocket, AlertTriangle, Plus, Edit2, Trash2, Calendar, Coins, Shield, ShieldOff, Search, History } from 'lucide-react';
+import { Users, UserCheck, UserX, Clock, CheckCircle, XCircle, Rocket, AlertTriangle, Plus, Edit2, Trash2, Calendar, Coins, Shield, ShieldOff, Search, History, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type FilterStatus = 'all' | 'pending' | 'approved' | 'blocked';
@@ -31,6 +31,8 @@ interface AdminActionDialog {
   userName: string;
   action: 'promote' | 'demote';
 }
+
+const ITEMS_PER_PAGE = 10;
 
 const AdminPage = () => {
   const { user, loading: authLoading } = useAuth();
@@ -51,6 +53,10 @@ const AdminPage = () => {
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [activeTab, setActiveTab] = useState('users');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Pagination states
+  const [usersPage, setUsersPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
 
   // Admin action confirmation dialog
   const [adminActionDialog, setAdminActionDialog] = useState<AdminActionDialog | null>(null);
@@ -106,6 +112,11 @@ const AdminPage = () => {
     }
   }, [activeTab, fetchActionHistory]);
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setUsersPage(1);
+  }, [filter, searchQuery]);
+
   if (authLoading || adminLoading || usersLoading) {
     return <LoadingScreen />;
   }
@@ -122,6 +133,20 @@ const AdminPage = () => {
       (u.email?.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesStatus && matchesSearch;
   });
+
+  // Pagination for users
+  const totalUserPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
+  const paginatedUsers = filteredUsers.slice(
+    (usersPage - 1) * ITEMS_PER_PAGE,
+    usersPage * ITEMS_PER_PAGE
+  );
+
+  // Pagination for history
+  const totalHistoryPages = Math.ceil(actionHistory.length / ITEMS_PER_PAGE);
+  const paginatedHistory = actionHistory.slice(
+    (historyPage - 1) * ITEMS_PER_PAGE,
+    historyPage * ITEMS_PER_PAGE
+  );
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -222,6 +247,50 @@ const AdminPage = () => {
 
   const isScheduledPassed = (dateString: string) => {
     return new Date(dateString) <= new Date();
+  };
+
+  // Pagination component
+  const PaginationControls = ({ 
+    currentPage, 
+    totalPages, 
+    onPageChange,
+    totalItems
+  }: { 
+    currentPage: number; 
+    totalPages: number; 
+    onPageChange: (page: number) => void;
+    totalItems: number;
+  }) => {
+    if (totalPages <= 1) return null;
+    
+    return (
+      <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+        <span className="text-sm text-muted-foreground">
+          Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} de {totalItems}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <span className="text-sm font-medium px-2">
+            {currentPage} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -335,12 +404,12 @@ const AdminPage = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {filteredUsers.length === 0 ? (
+                    {paginatedUsers.length === 0 ? (
                       <p className="text-center text-muted-foreground py-8">
                         {searchQuery ? 'Nenhum usuário encontrado com esse termo' : 'Nenhum usuário encontrado'}
                       </p>
                     ) : (
-                      filteredUsers.map((userProfile: UserProfile, index) => (
+                      paginatedUsers.map((userProfile: UserProfile, index) => (
                         <div 
                           key={userProfile.id} 
                           className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50 hover:bg-card transition-all animate-fade-in"
@@ -425,6 +494,13 @@ const AdminPage = () => {
                       ))
                     )}
                   </div>
+                  
+                  <PaginationControls
+                    currentPage={usersPage}
+                    totalPages={totalUserPages}
+                    onPageChange={setUsersPage}
+                    totalItems={filteredUsers.length}
+                  />
                 </CardContent>
               </Card>
 
@@ -477,46 +553,55 @@ const AdminPage = () => {
                   ) : actionHistory.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">Nenhuma ação registrada ainda</div>
                   ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Administrador</TableHead>
-                          <TableHead>Ação</TableHead>
-                          <TableHead>Usuário Alvo</TableHead>
-                          <TableHead>Detalhes</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {actionHistory.map((action: AdminAction) => (
-                          <TableRow key={action.id}>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {format(new Date(action.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium text-sm">{action.admin_name || 'Sem nome'}</p>
-                                <p className="text-xs text-muted-foreground">{action.admin_email}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={getActionBadgeVariant(action.action_type)}>
-                                {getActionLabel(action.action_type)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium text-sm">{action.target_name || 'Sem nome'}</p>
-                                <p className="text-xs text-muted-foreground">{action.target_email}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                              {action.details || '-'}
-                            </TableCell>
+                    <>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Data</TableHead>
+                            <TableHead>Administrador</TableHead>
+                            <TableHead>Ação</TableHead>
+                            <TableHead>Usuário Alvo</TableHead>
+                            <TableHead>Detalhes</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedHistory.map((action: AdminAction) => (
+                            <TableRow key={action.id}>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {format(new Date(action.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium text-sm">{action.admin_name || 'Sem nome'}</p>
+                                  <p className="text-xs text-muted-foreground">{action.admin_email}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={getActionBadgeVariant(action.action_type)}>
+                                  {getActionLabel(action.action_type)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium text-sm">{action.target_name || 'Sem nome'}</p>
+                                  <p className="text-xs text-muted-foreground">{action.target_email}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                                {action.details || '-'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      
+                      <PaginationControls
+                        currentPage={historyPage}
+                        totalPages={totalHistoryPages}
+                        onPageChange={setHistoryPage}
+                        totalItems={actionHistory.length}
+                      />
+                    </>
                   )}
                 </CardContent>
               </Card>

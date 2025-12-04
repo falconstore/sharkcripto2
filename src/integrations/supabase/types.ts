@@ -46,11 +46,13 @@ export type Database = {
           created_at: string | null
           funding_rate: number | null
           futures_ask_price: number
+          futures_bid_price: number | null
           futures_taker_fee: number | null
           futures_volume_24h: number
           id: string
           is_active: boolean | null
           pair_symbol: string
+          spot_ask_price: number | null
           spot_bid_price: number
           spot_taker_fee: number | null
           spot_volume_24h: number
@@ -64,11 +66,13 @@ export type Database = {
           created_at?: string | null
           funding_rate?: number | null
           futures_ask_price: number
+          futures_bid_price?: number | null
           futures_taker_fee?: number | null
           futures_volume_24h: number
           id?: string
           is_active?: boolean | null
           pair_symbol: string
+          spot_ask_price?: number | null
           spot_bid_price: number
           spot_taker_fee?: number | null
           spot_volume_24h: number
@@ -82,11 +86,13 @@ export type Database = {
           created_at?: string | null
           funding_rate?: number | null
           futures_ask_price?: number
+          futures_bid_price?: number | null
           futures_taker_fee?: number | null
           futures_volume_24h?: number
           id?: string
           is_active?: boolean | null
           pair_symbol?: string
+          spot_ask_price?: number | null
           spot_bid_price?: number
           spot_taker_fee?: number | null
           spot_volume_24h?: number

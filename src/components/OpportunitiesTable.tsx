@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Ban, TrendingUp, BarChart3, History, ChevronLeft, ChevronRight, Search, ArrowUpDown, X, Columns, ExternalLink } from 'lucide-react';
+import { Star, Ban, TrendingUp, BarChart3, History, ChevronLeft, ChevronRight, Search, X, Columns, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -452,7 +452,6 @@ const OpportunitiesTable = () => {
                           {sortConfigs.find(c => c.field === 'pair_symbol')?.order === 'asc' ? '↑' : '↓'}
                         </Badge>
                       )}
-                      <ArrowUpDown className="ml-2 w-4 h-4" />
                     </Button>
                   </TableHead>
                 )}
@@ -471,7 +470,6 @@ const OpportunitiesTable = () => {
                           {sortConfigs.find(c => c.field === 'spread_net_percent_entrada')?.order === 'asc' ? '↑' : '↓'}
                         </Badge>
                       )}
-                      <ArrowUpDown className="ml-2 w-4 h-4" />
                     </Button>
                   </TableHead>
                 )}
@@ -490,7 +488,6 @@ const OpportunitiesTable = () => {
                           {sortConfigs.find(c => c.field === 'spread_net_percent_saida')?.order === 'asc' ? '↑' : '↓'}
                         </Badge>
                       )}
-                      <ArrowUpDown className="ml-2 w-4 h-4" />
                     </Button>
                   </TableHead>
                 )}
@@ -657,12 +654,12 @@ const OpportunitiesTable = () => {
                       )}
                       {isColumnVisible('spot_bid_price') && (
                         <TableCell className="font-mono">
-                          ${formatNumber(opp.spot_bid_price, 8)}
+                          ${formatNumber(opp.spot_ask_price || opp.spot_bid_price, 8)}
                         </TableCell>
                       )}
                       {isColumnVisible('futures_ask_price') && (
                         <TableCell className="font-mono">
-                          ${formatNumber(opp.futures_ask_price, 8)}
+                          ${formatNumber(opp.futures_bid_price || opp.futures_ask_price, 8)}
                         </TableCell>
                       )}
                       {isColumnVisible('volumes') && (
@@ -682,8 +679,8 @@ const OpportunitiesTable = () => {
                                 size="icon"
                                 onClick={() => {
                                   const symbol = opp.pair_symbol.replace('_USDT', '').replace('USDT', '');
-                                  window.open(`https://www.mexc.com/pt-BR/exchange/${symbol}_USDT`, '_blank');
-                                  window.open(`https://futures.mexc.com/pt-BR/exchange/${symbol}_USDT`, '_blank');
+                                  window.open(`https://www.mexc.com/pt-BR/exchange/${symbol}_USDT`, 'mexc-spot');
+                                  window.open(`https://futures.mexc.com/pt-BR/exchange/${symbol}_USDT`, 'mexc-futures');
                                 }}
                                 className="h-8 w-8 text-gold hover:text-gold hover:bg-gold/10"
                               >
