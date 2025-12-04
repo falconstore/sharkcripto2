@@ -17,12 +17,28 @@ export interface UserStats {
   pending: number;
   approved: number;
   blocked: number;
+  admins: number;
+}
+
+export interface AdminAction {
+  id: string;
+  admin_user_id: string;
+  target_user_id: string;
+  action_type: string;
+  details: string | null;
+  created_at: string;
+  admin_name?: string;
+  admin_email?: string;
+  target_name?: string;
+  target_email?: string;
 }
 
 export function useUserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [stats, setStats] = useState<UserStats>({ total: 0, pending: 0, approved: 0, blocked: 0 });
+  const [stats, setStats] = useState<UserStats>({ total: 0, pending: 0, approved: 0, blocked: 0, admins: 0 });
+  const [actionHistory, setActionHistory] = useState<AdminAction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const { toast } = useToast();
 
   const fetchUsers = useCallback(async () => {
@@ -57,6 +73,7 @@ export function useUserManagement() {
         pending: typedUsers.filter(u => u.status === 'pending').length,
         approved: typedUsers.filter(u => u.status === 'approved').length,
         blocked: typedUsers.filter(u => u.status === 'blocked').length,
+        admins: adminUserIds.size,
       };
       setStats(newStats);
     } catch (error) {
@@ -71,6 +88,71 @@ export function useUserManagement() {
     }
   }, [toast]);
 
+  const fetchActionHistory = useCallback(async () => {
+    try {
+      setHistoryLoading(true);
+      const { data, error } = await supabase
+        .from('admin_action_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      // Fetch user profiles for admin and target names
+      const userIds = new Set<string>();
+      (data || []).forEach(action => {
+        userIds.add(action.admin_user_id);
+        userIds.add(action.target_user_id);
+      });
+
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', Array.from(userIds));
+
+      const profileMap = new Map(
+        (profiles || []).map(p => [p.id, { name: p.full_name, email: p.email }])
+      );
+
+      const enrichedActions = (data || []).map(action => ({
+        ...action,
+        admin_name: profileMap.get(action.admin_user_id)?.name || null,
+        admin_email: profileMap.get(action.admin_user_id)?.email || null,
+        target_name: profileMap.get(action.target_user_id)?.name || null,
+        target_email: profileMap.get(action.target_user_id)?.email || null,
+      }));
+
+      setActionHistory(enrichedActions);
+    } catch (error) {
+      console.error('Error fetching action history:', error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  const logAdminAction = async (
+    targetUserId: string, 
+    actionType: string, 
+    details?: string
+  ) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase
+        .from('admin_action_history')
+        .insert({
+          admin_user_id: user.id,
+          target_user_id: targetUserId,
+          action_type: actionType,
+          details: details || null,
+        });
+    } catch (error) {
+      console.error('Error logging admin action:', error);
+    }
+  };
+
   const updateUserStatus = async (userId: string, status: 'pending' | 'approved' | 'blocked') => {
     try {
       const { error } = await supabase
@@ -79,6 +161,10 @@ export function useUserManagement() {
         .eq('id', userId);
 
       if (error) throw error;
+
+      // Log the action
+      const actionType = status === 'approved' ? 'approve' : status === 'blocked' ? 'block' : 'set_pending';
+      await logAdminAction(userId, actionType, `Status alterado para ${status}`);
 
       toast({
         title: 'Sucesso',
@@ -118,6 +204,9 @@ export function useUserManagement() {
 
       if (error) throw error;
 
+      // Log the action
+      await logAdminAction(userId, 'promote', 'Promovido a administrador');
+
       toast({
         title: 'Sucesso',
         description: 'Usuário promovido a administrador',
@@ -144,6 +233,9 @@ export function useUserManagement() {
 
       if (error) throw error;
 
+      // Log the action
+      await logAdminAction(userId, 'demote', 'Removido de administrador');
+
       toast({
         title: 'Sucesso',
         description: 'Permissão de admin removida',
@@ -167,8 +259,11 @@ export function useUserManagement() {
   return {
     users,
     stats,
+    actionHistory,
     loading,
+    historyLoading,
     fetchUsers,
+    fetchActionHistory,
     updateUserStatus,
     promoteToAdmin,
     demoteFromAdmin,

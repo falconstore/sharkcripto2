@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
-import { useUserManagement, UserProfile } from '@/hooks/useUserManagement';
+import { useUserManagement, UserProfile, AdminAction } from '@/hooks/useUserManagement';
 import { useCoinListings, CoinListing } from '@/hooks/useCoinListings';
 import DashboardHeader from '@/components/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Users, UserCheck, UserX, Clock, CheckCircle, XCircle, Rocket, AlertTriangle, Plus, Edit2, Trash2, Calendar, Coins, Shield, ShieldOff } from 'lucide-react';
+import { Users, UserCheck, UserX, Clock, CheckCircle, XCircle, Rocket, AlertTriangle, Plus, Edit2, Trash2, Calendar, Coins, Shield, ShieldOff, Search, History } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type FilterStatus = 'all' | 'pending' | 'approved' | 'blocked';
@@ -35,11 +35,22 @@ interface AdminActionDialog {
 const AdminPage = () => {
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
-  const { users, stats, loading: usersLoading, updateUserStatus, promoteToAdmin, demoteFromAdmin } = useUserManagement();
+  const { 
+    users, 
+    stats, 
+    actionHistory, 
+    loading: usersLoading, 
+    historyLoading,
+    fetchActionHistory,
+    updateUserStatus, 
+    promoteToAdmin, 
+    demoteFromAdmin 
+  } = useUserManagement();
   const { listings, newListings, delistings, addListing, updateListing, deleteListing } = useCoinListings();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [activeTab, setActiveTab] = useState('users');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Admin action confirmation dialog
   const [adminActionDialog, setAdminActionDialog] = useState<AdminActionDialog | null>(null);
@@ -88,6 +99,13 @@ const AdminPage = () => {
     }
   }, [isAdmin, adminLoading, navigate]);
 
+  // Fetch action history when history tab is active
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchActionHistory();
+    }
+  }, [activeTab, fetchActionHistory]);
+
   if (authLoading || adminLoading || usersLoading) {
     return <LoadingScreen />;
   }
@@ -96,9 +114,14 @@ const AdminPage = () => {
     return null;
   }
 
-  const filteredUsers = filter === 'all' 
-    ? users 
-    : users.filter(u => u.status === filter);
+  // Filter users by status and search query
+  const filteredUsers = users.filter(u => {
+    const matchesStatus = filter === 'all' || u.status === filter;
+    const matchesSearch = searchQuery === '' || 
+      (u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (u.email?.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesStatus && matchesSearch;
+  });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -108,6 +131,27 @@ const AdminPage = () => {
         return <Badge variant="destructive">Bloqueado</Badge>;
       default:
         return <Badge variant="secondary" className="bg-warning text-warning-foreground">Pendente</Badge>;
+    }
+  };
+
+  const getActionLabel = (actionType: string) => {
+    switch (actionType) {
+      case 'approve': return 'Aprovou';
+      case 'block': return 'Bloqueou';
+      case 'set_pending': return 'Definiu como pendente';
+      case 'promote': return 'Promoveu a admin';
+      case 'demote': return 'Removeu admin';
+      default: return actionType;
+    }
+  };
+
+  const getActionBadgeVariant = (actionType: string) => {
+    switch (actionType) {
+      case 'approve': return 'bg-success/20 text-success border-success/30';
+      case 'block': return 'bg-destructive/20 text-destructive border-destructive/30';
+      case 'promote': return 'bg-gold/20 text-gold border-gold/30';
+      case 'demote': return 'bg-warning/20 text-warning border-warning/30';
+      default: return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -193,7 +237,7 @@ const AdminPage = () => {
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsList className="grid w-full max-w-lg grid-cols-3">
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="w-4 h-4" />
                 Usuários
@@ -204,12 +248,16 @@ const AdminPage = () => {
                 Listings
                 <Badge variant="secondary" className="ml-1">{listings.length}</Badge>
               </TabsTrigger>
+              <TabsTrigger value="history" className="flex items-center gap-2">
+                <History className="w-4 h-4" />
+                Histórico
+              </TabsTrigger>
             </TabsList>
 
             {/* Users Tab */}
             <TabsContent value="users" className="space-y-6">
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {[
                   { label: 'Total', value: stats.total, icon: Users, color: '', filter: 'all' as FilterStatus },
                   { label: 'Pendentes', value: stats.pending, icon: Clock, color: 'text-warning', filter: 'pending' as FilterStatus },
@@ -231,20 +279,53 @@ const AdminPage = () => {
                     </CardContent>
                   </Card>
                 ))}
+                
+                {/* Admin Counter Card with Warning */}
+                <Card 
+                  className={`animate-fade-in ${stats.admins <= 1 ? 'border-destructive bg-destructive/5' : 'border-gold/30 bg-gold/5'}`}
+                  style={{ animationDelay: '400ms' }}
+                >
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium">Admins</CardTitle>
+                    <Shield className={`h-4 w-4 ${stats.admins <= 1 ? 'text-destructive' : 'text-gold'}`} />
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold ${stats.admins <= 1 ? 'text-destructive' : 'text-gold'}`}>
+                      {stats.admins}
+                    </div>
+                    {stats.admins <= 1 && (
+                      <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Único admin!
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
 
-              {/* Filter Buttons */}
-              <div className="flex gap-2 flex-wrap">
-                {(['all', 'pending', 'approved', 'blocked'] as FilterStatus[]).map((f) => (
-                  <Button 
-                    key={f}
-                    variant={filter === f ? 'default' : 'outline'} 
-                    size="sm"
-                    onClick={() => setFilter(f)}
-                  >
-                    {f === 'all' ? 'Todos' : f === 'pending' ? 'Pendentes' : f === 'approved' ? 'Aprovados' : 'Bloqueados'}
-                  </Button>
-                ))}
+              {/* Search and Filter */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nome ou email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {(['all', 'pending', 'approved', 'blocked'] as FilterStatus[]).map((f) => (
+                    <Button 
+                      key={f}
+                      variant={filter === f ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setFilter(f)}
+                    >
+                      {f === 'all' ? 'Todos' : f === 'pending' ? 'Pendentes' : f === 'approved' ? 'Aprovados' : 'Bloqueados'}
+                    </Button>
+                  ))}
+                </div>
               </div>
 
               {/* Users List */}
@@ -255,7 +336,9 @@ const AdminPage = () => {
                 <CardContent>
                   <div className="space-y-4">
                     {filteredUsers.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">Nenhum usuário encontrado</p>
+                      <p className="text-center text-muted-foreground py-8">
+                        {searchQuery ? 'Nenhum usuário encontrado com esse termo' : 'Nenhum usuário encontrado'}
+                      </p>
                     ) : (
                       filteredUsers.map((userProfile: UserProfile, index) => (
                         <div 
@@ -379,6 +462,66 @@ const AdminPage = () => {
               </AlertDialog>
             </TabsContent>
 
+            {/* History Tab */}
+            <TabsContent value="history" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="w-5 h-5" />
+                    Histórico de Ações Administrativas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {historyLoading ? (
+                    <div className="text-center py-8 text-muted-foreground">Carregando histórico...</div>
+                  ) : actionHistory.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">Nenhuma ação registrada ainda</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Administrador</TableHead>
+                          <TableHead>Ação</TableHead>
+                          <TableHead>Usuário Alvo</TableHead>
+                          <TableHead>Detalhes</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {actionHistory.map((action: AdminAction) => (
+                          <TableRow key={action.id}>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {format(new Date(action.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-sm">{action.admin_name || 'Sem nome'}</p>
+                                <p className="text-xs text-muted-foreground">{action.admin_email}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getActionBadgeVariant(action.action_type)}>
+                                {getActionLabel(action.action_type)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-sm">{action.target_name || 'Sem nome'}</p>
+                                <p className="text-xs text-muted-foreground">{action.target_email}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                              {action.details || '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             {/* Listings Tab */}
             <TabsContent value="listings" className="space-y-6">
               <div className="flex justify-between items-center">
@@ -396,21 +539,21 @@ const AdminPage = () => {
                     </div>
                   </Card>
                 </div>
-
+                
                 <Dialog open={dialogOpen} onOpenChange={(open) => {
                   setDialogOpen(open);
                   if (!open) resetForm();
                 }}>
                   <DialogTrigger asChild>
-                    <Button className="bg-gradient-primary hover:opacity-90 transition-opacity">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Adicionar Listing
+                    <Button className="flex items-center gap-2">
+                      <Plus className="w-4 h-4" />
+                      Nova Listagem
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>
-                        {editingListing ? 'Editar Listing' : 'Adicionar Novo Listing'}
+                        {editingListing ? 'Editar Listagem' : 'Nova Listagem'}
                       </DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
@@ -419,51 +562,41 @@ const AdminPage = () => {
                         <Select
                           value={formData.listing_type}
                           onValueChange={(value: 'new' | 'delist') => 
-                            setFormData(prev => ({ ...prev, listing_type: value }))
+                            setFormData({ ...formData, listing_type: value })
                           }
                         >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="new">
-                              <div className="flex items-center gap-2">
-                                <Rocket className="w-4 h-4 text-profit" />
-                                Nova Listagem
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="delist">
-                              <div className="flex items-center gap-2">
-                                <AlertTriangle className="w-4 h-4 text-destructive" />
-                                Deslistagem
-                              </div>
-                            </SelectItem>
+                            <SelectItem value="new">Nova Listagem</SelectItem>
+                            <SelectItem value="delist">Delisting</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-
+                      
                       <div className="space-y-2">
                         <Label htmlFor="coin_name">Nome da Moeda</Label>
                         <Input
                           id="coin_name"
                           value={formData.coin_name}
-                          onChange={(e) => setFormData(prev => ({ ...prev, coin_name: e.target.value }))}
+                          onChange={(e) => setFormData({ ...formData, coin_name: e.target.value })}
                           placeholder="Ex: Bitcoin"
                           required
                         />
                       </div>
-
+                      
                       <div className="space-y-2">
                         <Label htmlFor="pair_symbol">Par</Label>
                         <Input
                           id="pair_symbol"
                           value={formData.pair_symbol}
-                          onChange={(e) => setFormData(prev => ({ ...prev, pair_symbol: e.target.value }))}
-                          placeholder="Ex: BTC_USDT"
+                          onChange={(e) => setFormData({ ...formData, pair_symbol: e.target.value })}
+                          placeholder="Ex: BTCUSDT"
                           required
                         />
                       </div>
-
+                      
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="scheduled_date">Data</Label>
@@ -471,7 +604,7 @@ const AdminPage = () => {
                             id="scheduled_date"
                             type="date"
                             value={formData.scheduled_date}
-                            onChange={(e) => setFormData(prev => ({ ...prev, scheduled_date: e.target.value }))}
+                            onChange={(e) => setFormData({ ...formData, scheduled_date: e.target.value })}
                             required
                           />
                         </div>
@@ -481,21 +614,15 @@ const AdminPage = () => {
                             id="scheduled_time"
                             type="time"
                             value={formData.scheduled_time}
-                            onChange={(e) => setFormData(prev => ({ ...prev, scheduled_time: e.target.value }))}
+                            onChange={(e) => setFormData({ ...formData, scheduled_time: e.target.value })}
                             required
                           />
                         </div>
                       </div>
-
+                      
                       <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => {
-                          setDialogOpen(false);
-                          resetForm();
-                        }}>
-                          Cancelar
-                        </Button>
-                        <Button type="submit" className="bg-gradient-primary">
-                          {editingListing ? 'Salvar' : 'Adicionar'}
+                        <Button type="submit">
+                          {editingListing ? 'Salvar' : 'Criar'}
                         </Button>
                       </DialogFooter>
                     </form>
@@ -503,13 +630,9 @@ const AdminPage = () => {
                 </Dialog>
               </div>
 
-              {/* Listings Table */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Coins className="w-5 h-5 text-gold" />
-                    Todas as Listagens ({listings.length})
-                  </CardTitle>
+                  <CardTitle>Listagens Agendadas</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -520,26 +643,22 @@ const AdminPage = () => {
                         <TableHead>Par</TableHead>
                         <TableHead>Data/Hora</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead className="w-[100px]">Ações</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {listings.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                            Nenhuma listagem encontrada
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                            Nenhuma listagem agendada
                           </TableCell>
                         </TableRow>
                       ) : (
-                        listings.map((listing, index) => (
-                          <TableRow 
-                            key={listing.id}
-                            className="animate-fade-in"
-                            style={{ animationDelay: `${index * 50}ms` }}
-                          >
+                        listings.map((listing) => (
+                          <TableRow key={listing.id}>
                             <TableCell>
                               {listing.listing_type === 'new' ? (
-                                <Badge className="bg-profit/20 text-profit border-profit/40">
+                                <Badge className="bg-profit/20 text-profit">
                                   <Rocket className="w-3 h-3 mr-1" />
                                   Nova
                                 </Badge>
@@ -551,44 +670,36 @@ const AdminPage = () => {
                               )}
                             </TableCell>
                             <TableCell className="font-medium">{listing.coin_name}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="font-mono">
-                                {listing.pair_symbol}
-                              </Badge>
-                            </TableCell>
+                            <TableCell>{listing.pair_symbol}</TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                                <span className="text-sm">{formatDateTime(listing.scheduled_date)}</span>
+                                {formatDateTime(listing.scheduled_date)}
                               </div>
                             </TableCell>
                             <TableCell>
                               {isScheduledPassed(listing.scheduled_date) ? (
-                                <Badge className="bg-muted text-muted-foreground">Concluído</Badge>
+                                <Badge variant="secondary">Realizado</Badge>
                               ) : (
-                                <Badge variant="outline" className="bg-warning/20 text-warning-foreground">
-                                  <Clock className="w-3 h-3 mr-1" />
-                                  Agendado
-                                </Badge>
+                                <Badge className="bg-warning/20 text-warning">Agendado</Badge>
                               )}
                             </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
                                 <Button
-                                  variant="ghost"
-                                  size="icon"
+                                  size="sm"
+                                  variant="outline"
                                   onClick={() => openEditDialog(listing)}
-                                  className="h-8 w-8"
                                 >
-                                  <Edit2 className="w-4 h-4" />
+                                  <Edit2 className="h-4 w-4" />
                                 </Button>
                                 <Button
-                                  variant="ghost"
-                                  size="icon"
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
                                   onClick={() => handleDelete(listing.id)}
-                                  className="h-8 w-8 text-destructive hover:text-destructive"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             </TableCell>
