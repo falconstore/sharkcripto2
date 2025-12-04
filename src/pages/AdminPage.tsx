@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useUserManagement, UserProfile, AdminAction } from '@/hooks/useUserManagement';
 import { useCoinListings, CoinListing } from '@/hooks/useCoinListings';
+import { useIsMobile } from '@/hooks/use-mobile';
 import DashboardHeader from '@/components/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Users, UserCheck, UserX, Clock, CheckCircle, XCircle, Rocket, AlertTriangle, Plus, Edit2, Trash2, Calendar, Coins, Shield, ShieldOff, Search, History, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 type FilterStatus = 'all' | 'pending' | 'approved' | 'blocked';
 
@@ -49,6 +50,7 @@ const AdminPage = () => {
     demoteFromAdmin 
   } = useUserManagement();
   const { listings, newListings, delistings, addListing, updateListing, deleteListing } = useCoinListings();
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [activeTab, setActiveTab] = useState('users');
@@ -294,39 +296,40 @@ const AdminPage = () => {
   };
 
   return (
+    <TooltipProvider>
     <div className="min-h-screen bg-background relative">
       <StarBackground />
       <DashboardHeader />
       
       <PageTransition>
-        <main className="container mx-auto px-4 py-8 space-y-8 relative z-10">
+        <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 space-y-6 sm:space-y-8 relative z-10">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-gradient-gold">Painel Administrativo</h1>
-            <p className="text-muted-foreground">Gerencie usuários e listagens do sistema</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gradient-gold">Painel Administrativo</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Gerencie usuários e listagens do sistema</p>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full max-w-lg grid-cols-3">
-              <TabsTrigger value="users" className="flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Usuários
-                <Badge variant="secondary" className="ml-1">{stats.total}</Badge>
+            <TabsList className={`grid w-full ${isMobile ? 'grid-cols-3' : 'max-w-lg grid-cols-3'}`}>
+              <TabsTrigger value="users" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Users className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Usuários</span>
+                <Badge variant="secondary" className="ml-1 text-xs">{stats.total}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="listings" className="flex items-center gap-2">
-                <Coins className="w-4 h-4" />
-                Listings
-                <Badge variant="secondary" className="ml-1">{listings.length}</Badge>
+              <TabsTrigger value="listings" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Coins className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Listings</span>
+                <Badge variant="secondary" className="ml-1 text-xs">{listings.length}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="history" className="flex items-center gap-2">
-                <History className="w-4 h-4" />
-                Histórico
+              <TabsTrigger value="history" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <History className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Histórico</span>
               </TabsTrigger>
             </TabsList>
 
             {/* Users Tab */}
             <TabsContent value="users" className="space-y-6">
               {/* Stats Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-4">
                 {[
                   { label: 'Total', value: stats.total, icon: Users, color: '', filter: 'all' as FilterStatus },
                   { label: 'Pendentes', value: stats.pending, icon: Clock, color: 'text-warning', filter: 'pending' as FilterStatus },
@@ -339,27 +342,27 @@ const AdminPage = () => {
                     style={{ animationDelay: `${index * 100}ms` }}
                     onClick={() => setFilter(stat.filter)}
                   >
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                      <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
-                      <stat.icon className={`h-4 w-4 ${stat.color || 'text-muted-foreground'}`} />
+                    <CardHeader className="flex flex-row items-center justify-between p-3 sm:pb-2">
+                      <CardTitle className="text-xs sm:text-sm font-medium">{stat.label}</CardTitle>
+                      <stat.icon className={`h-3 w-3 sm:h-4 sm:w-4 ${stat.color || 'text-muted-foreground'}`} />
                     </CardHeader>
-                    <CardContent>
-                      <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+                    <CardContent className="p-3 pt-0">
+                      <div className={`text-xl sm:text-2xl font-bold ${stat.color}`}>{stat.value}</div>
                     </CardContent>
                   </Card>
                 ))}
                 
                 {/* Admin Counter Card with Warning */}
                 <Card 
-                  className={`animate-fade-in ${stats.admins <= 1 ? 'border-destructive bg-destructive/5' : 'border-gold/30 bg-gold/5'}`}
+                  className={`animate-fade-in col-span-2 sm:col-span-1 ${stats.admins <= 1 ? 'border-destructive bg-destructive/5' : 'border-gold/30 bg-gold/5'}`}
                   style={{ animationDelay: '400ms' }}
                 >
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium">Admins</CardTitle>
-                    <Shield className={`h-4 w-4 ${stats.admins <= 1 ? 'text-destructive' : 'text-gold'}`} />
+                  <CardHeader className="flex flex-row items-center justify-between p-3 sm:pb-2">
+                    <CardTitle className="text-xs sm:text-sm font-medium">Admins</CardTitle>
+                    <Shield className={`h-3 w-3 sm:h-4 sm:w-4 ${stats.admins <= 1 ? 'text-destructive' : 'text-gold'}`} />
                   </CardHeader>
-                  <CardContent>
-                    <div className={`text-2xl font-bold ${stats.admins <= 1 ? 'text-destructive' : 'text-gold'}`}>
+                  <CardContent className="p-3 pt-0">
+                    <div className={`text-xl sm:text-2xl font-bold ${stats.admins <= 1 ? 'text-destructive' : 'text-gold'}`}>
                       {stats.admins}
                     </div>
                     {stats.admins <= 1 && (
@@ -373,8 +376,8 @@ const AdminPage = () => {
               </div>
 
               {/* Search and Filter */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1 max-w-md">
+              <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Buscar por nome ou email..."
@@ -390,6 +393,7 @@ const AdminPage = () => {
                       variant={filter === f ? 'default' : 'outline'} 
                       size="sm"
                       onClick={() => setFilter(f)}
+                      className="text-xs sm:text-sm"
                     >
                       {f === 'all' ? 'Todos' : f === 'pending' ? 'Pendentes' : f === 'approved' ? 'Aprovados' : 'Bloqueados'}
                     </Button>
@@ -399,11 +403,11 @@ const AdminPage = () => {
 
               {/* Users List */}
               <Card>
-                <CardHeader>
-                  <CardTitle>Usuários ({filteredUsers.length})</CardTitle>
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-base sm:text-lg">Usuários ({filteredUsers.length})</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
+                <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+                  <div className="space-y-3">
                     {paginatedUsers.length === 0 ? (
                       <p className="text-center text-muted-foreground py-8">
                         {searchQuery ? 'Nenhum usuário encontrado com esse termo' : 'Nenhum usuário encontrado'}
@@ -412,16 +416,16 @@ const AdminPage = () => {
                       paginatedUsers.map((userProfile: UserProfile, index) => (
                         <div 
                           key={userProfile.id} 
-                          className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50 hover:bg-card transition-all animate-fade-in"
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50 hover:bg-card transition-all animate-fade-in gap-3"
                           style={{ animationDelay: `${index * 50}ms` }}
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-gradient-gold flex items-center justify-center text-primary-foreground font-bold">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-gold flex items-center justify-center text-primary-foreground font-bold flex-shrink-0">
                               {(userProfile.full_name || userProfile.email || '?')[0].toUpperCase()}
                             </div>
-                            <div>
-                              <p className="font-medium">{userProfile.full_name || 'Sem nome'}</p>
-                              <p className="text-sm text-muted-foreground">{userProfile.email}</p>
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{userProfile.full_name || 'Sem nome'}</p>
+                              <p className="text-xs sm:text-sm text-muted-foreground truncate">{userProfile.email}</p>
                               <p className="text-xs text-muted-foreground">
                                 {userProfile.created_at 
                                   ? new Date(userProfile.created_at).toLocaleDateString('pt-BR')
@@ -430,19 +434,19 @@ const AdminPage = () => {
                             </div>
                           </div>
                           
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 flex-wrap justify-end">
                             {userProfile.id === user?.id && (
                               <Badge variant="outline" className="text-xs">Você</Badge>
                             )}
                             {userProfile.isAdmin && (
-                              <Badge className="bg-gold/20 text-gold border-gold/30">
+                              <Badge className="bg-gold/20 text-gold border-gold/30 text-xs">
                                 <Shield className="w-3 h-3 mr-1" />
                                 Admin
                               </Badge>
                             )}
                             {getStatusBadge(userProfile.status)}
                             
-                            <div className="flex gap-2">
+                            <div className="flex gap-1 sm:gap-2">
                               {/* Toggle Admin - não permite remover a si mesmo */}
                               {userProfile.id !== user?.id && (
                                 <Tooltip>
@@ -450,10 +454,10 @@ const AdminPage = () => {
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      className={userProfile.isAdmin 
+                                      className={`h-8 w-8 p-0 ${userProfile.isAdmin 
                                         ? "text-gold border-gold hover:bg-gold hover:text-gold-foreground" 
                                         : "text-muted-foreground border-border hover:bg-accent"
-                                      }
+                                      }`}
                                       onClick={() => openAdminActionDialog(
                                         userProfile, 
                                         userProfile.isAdmin ? 'demote' : 'promote'
@@ -472,7 +476,7 @@ const AdminPage = () => {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="text-success border-success hover:bg-success hover:text-success-foreground"
+                                  className="h-8 w-8 p-0 text-success border-success hover:bg-success hover:text-success-foreground"
                                   onClick={() => updateUserStatus(userProfile.id, 'approved')}
                                 >
                                   <CheckCircle className="h-4 w-4" />
@@ -482,7 +486,7 @@ const AdminPage = () => {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                  className="h-8 w-8 p-0 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
                                   onClick={() => updateUserStatus(userProfile.id, 'blocked')}
                                 >
                                   <XCircle className="h-4 w-4" />
@@ -541,19 +545,49 @@ const AdminPage = () => {
             {/* History Tab */}
             <TabsContent value="history" className="space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <History className="w-5 h-5" />
-                    Histórico de Ações Administrativas
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                    <History className="w-4 h-4 sm:w-5 sm:h-5" />
+                    Histórico de Ações
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
                   {historyLoading ? (
                     <div className="text-center py-8 text-muted-foreground">Carregando histórico...</div>
                   ) : actionHistory.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">Nenhuma ação registrada ainda</div>
+                  ) : isMobile ? (
+                    // Mobile: Cards view
+                    <div className="space-y-3">
+                      {paginatedHistory.map((action: AdminAction) => (
+                        <div key={action.id} className="p-3 rounded-lg border border-border/50 bg-muted/30 space-y-2 animate-fade-in">
+                          <div className="flex items-center justify-between">
+                            <Badge className={getActionBadgeVariant(action.action_type)}>
+                              {getActionLabel(action.action_type)}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(action.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Admin</p>
+                              <p className="font-medium truncate">{action.admin_name || 'Sem nome'}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Alvo</p>
+                              <p className="font-medium truncate">{action.target_name || 'Sem nome'}</p>
+                            </div>
+                          </div>
+                          {action.details && (
+                            <p className="text-xs text-muted-foreground truncate">{action.details}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    <>
+                    // Desktop: Table view
+                    <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -594,15 +628,15 @@ const AdminPage = () => {
                           ))}
                         </TableBody>
                       </Table>
-                      
-                      <PaginationControls
-                        currentPage={historyPage}
-                        totalPages={totalHistoryPages}
-                        onPageChange={setHistoryPage}
-                        totalItems={actionHistory.length}
-                      />
-                    </>
+                    </div>
                   )}
+                  
+                  <PaginationControls
+                    currentPage={historyPage}
+                    totalPages={totalHistoryPages}
+                    onPageChange={setHistoryPage}
+                    totalItems={actionHistory.length}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -800,6 +834,7 @@ const AdminPage = () => {
         </main>
       </PageTransition>
     </div>
+    </TooltipProvider>
   );
 };
 
