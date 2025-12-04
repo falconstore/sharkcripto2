@@ -1,6 +1,5 @@
 import { TimeSeriesData, Period } from '@/hooks/useStatistics';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp } from 'lucide-react';
 
@@ -32,13 +31,14 @@ const getPeriodLabel = (period: Period): string => {
 const CrossingTimeSeriesChart = ({ data, loading, period }: CrossingTimeSeriesChartProps) => {
   if (loading) {
     return (
-      <Card>
+      <Card className="relative overflow-hidden animate-fade-in border-border/50 bg-card/80 backdrop-blur-sm">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent animate-shimmer" />
         <CardHeader>
-          <Skeleton className="h-6 w-[200px]" />
-          <Skeleton className="h-4 w-[300px] mt-2" />
+          <div className="h-6 w-48 bg-muted rounded animate-pulse" />
+          <div className="h-4 w-64 bg-muted rounded animate-pulse mt-2" />
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-[300px] w-full" />
+          <div className="h-[300px] w-full bg-muted/50 rounded animate-pulse" />
         </CardContent>
       </Card>
     );
@@ -46,10 +46,12 @@ const CrossingTimeSeriesChart = ({ data, loading, period }: CrossingTimeSeriesCh
 
   if (!data || data.length === 0) {
     return (
-      <Card>
+      <Card className="border-border/50 bg-card/80 backdrop-blur-sm animate-fade-in">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-primary" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <TrendingUp className="w-5 h-5 text-primary" />
+            </div>
             Cruzamentos ao Longo do Tempo
           </CardTitle>
           <CardDescription>
@@ -63,14 +65,15 @@ const CrossingTimeSeriesChart = ({ data, loading, period }: CrossingTimeSeriesCh
     );
   }
 
-  // Extrair nomes das moedas (todas as chaves exceto 'time')
   const coinNames = Object.keys(data[0]).filter(key => key !== 'time');
 
   return (
-    <Card>
+    <Card className="group border-border/50 bg-card/80 backdrop-blur-sm hover:border-primary/30 transition-all duration-300 animate-fade-in hover:shadow-lg hover:shadow-primary/5">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-primary" />
+          <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+            <TrendingUp className="w-5 h-5 text-primary" />
+          </div>
           Cruzamentos ao Longo do Tempo
         </CardTitle>
         <CardDescription>
@@ -80,7 +83,7 @@ const CrossingTimeSeriesChart = ({ data, loading, period }: CrossingTimeSeriesCh
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
             <XAxis
               dataKey="time"
               className="text-xs"
@@ -94,8 +97,10 @@ const CrossingTimeSeriesChart = ({ data, loading, period }: CrossingTimeSeriesCh
               contentStyle={{
                 backgroundColor: 'hsl(var(--card))',
                 border: '1px solid hsl(var(--border))',
-                borderRadius: '8px',
+                borderRadius: '12px',
+                boxShadow: '0 10px 40px -10px hsl(var(--primary) / 0.2)',
               }}
+              labelStyle={{ color: 'hsl(var(--foreground))' }}
             />
             <Legend />
             {coinNames.map((coin, index) => (
@@ -105,8 +110,15 @@ const CrossingTimeSeriesChart = ({ data, loading, period }: CrossingTimeSeriesCh
                 dataKey={coin}
                 stroke={COLORS[index % COLORS.length]}
                 strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
+                dot={{ r: 3, fill: COLORS[index % COLORS.length] }}
+                activeDot={{ 
+                  r: 6, 
+                  fill: COLORS[index % COLORS.length],
+                  stroke: 'hsl(var(--background))',
+                  strokeWidth: 2,
+                }}
+                animationDuration={1000}
+                animationBegin={index * 200}
               />
             ))}
           </LineChart>

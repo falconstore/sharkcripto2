@@ -564,15 +564,19 @@ const OpportunitiesTable = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedOpportunities.map((opp, index) => {
+              paginatedOpportunities.map((opp, index) => {
                   const isFavorite = favorites.has(opp.pair_symbol);
                   const crossings = getCrossingsForPair(opp.pair_symbol);
                   return (
                     <TableRow 
                       key={opp.pair_symbol}
-                      className={`hover:bg-accent/80 hover:shadow-md cursor-pointer transition-all ${
-                        index % 2 === 0 ? 'bg-card' : 'bg-accent/20'
-                      }`}
+                      className={`
+                        hover:bg-accent/80 hover:shadow-lg hover:scale-[1.01] cursor-pointer 
+                        transition-all duration-200 animate-fade-in
+                        ${index % 2 === 0 ? 'bg-card' : 'bg-accent/20'}
+                        ${isFavorite ? 'bg-gold/5 hover:bg-gold/10' : ''}
+                      `}
+                      style={{ animationDelay: `${index * 30}ms` }}
                     >
                       <TableCell>
                         <Button
