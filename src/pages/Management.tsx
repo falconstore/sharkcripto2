@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Calculator, Settings2, Volume2, VolumeX } from 'lucide-react';
+import { Plus, Calculator, Settings2, Volume2, VolumeX, TrendingUp, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -22,10 +22,9 @@ const ManagementPage = () => {
     addCalculator, 
     removeCalculator, 
     reorderCalculators,
-    profitThreshold,
-    setProfitThreshold,
     soundEnabled,
-    toggleSound
+    toggleSound,
+    getTotalProfit
   } = useCalculatorStore();
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -75,6 +74,10 @@ const ManagementPage = () => {
   // Sort calculators by order
   const sortedCalculators = [...calculators].sort((a, b) => a.order - b.order);
 
+  // Calculate global stats
+  const totalProfit = getTotalProfit();
+  const activeCalculators = calculators.filter(c => c.currentProfit !== 0).length;
+
   return (
     <div className="min-h-screen bg-background relative">
       <StarBackground />
@@ -82,6 +85,35 @@ const ManagementPage = () => {
       
       <PageTransition>
         <main className="container mx-auto px-4 py-8 relative z-10">
+          {/* Global Statistics Card */}
+          <Card className="bg-gradient-card border-border/50 mb-6">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-profit/20 flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6 text-profit" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Lucro Total (Calculadoras)</p>
+                    <p className={`text-2xl font-bold font-mono ${totalProfit >= 0 ? 'text-profit' : 'text-negative'}`}>
+                      ${totalProfit.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">Total</p>
+                    <p className="text-xl font-bold">{calculators.length}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">Com Lucro</p>
+                    <p className="text-xl font-bold text-profit">{activeCalculators}</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -96,24 +128,9 @@ const ManagementPage = () => {
                     <Settings2 className="w-4 h-4" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-64">
+                <PopoverContent align="end" className="w-56">
                   <div className="space-y-4">
-                    <h4 className="font-medium text-sm">Configurações</h4>
-                    
-                    {/* Threshold */}
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">
-                        Notificar lucro acima de (USD)
-                      </Label>
-                      <Input
-                        type="number"
-                        value={profitThreshold}
-                        onChange={(e) => setProfitThreshold(parseFloat(e.target.value) || 0)}
-                        className="h-8"
-                        placeholder="1.00"
-                        step="0.5"
-                      />
-                    </div>
+                    <h4 className="font-medium text-sm">Configurações Globais</h4>
                     
                     {/* Sound Toggle */}
                     <div className="flex items-center justify-between">
@@ -130,6 +147,10 @@ const ManagementPage = () => {
                         onCheckedChange={toggleSound}
                       />
                     </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      O threshold de alerta é configurado individualmente em cada calculadora (em %).
+                    </p>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -170,7 +191,7 @@ const ManagementPage = () => {
 
           {/* Dica */}
           <p className="text-center text-sm text-muted-foreground mt-8">
-            Arraste para reorganizar • Calculadoras persistem entre sessões
+            Arraste para reorganizar • Configure o alerta em % em cada calculadora
           </p>
         </main>
       </PageTransition>

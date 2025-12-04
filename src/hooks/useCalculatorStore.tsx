@@ -11,18 +11,19 @@ export interface CalculatorData {
   fechamentoFuturo: string;
   trackingActive: boolean;
   order: number;
+  profitThresholdPercent: number; // Threshold individual em %
+  currentProfit: number; // Lucro atual para estatísticas
 }
 
 interface CalculatorStore {
   calculators: CalculatorData[];
-  profitThreshold: number;
   soundEnabled: boolean;
   addCalculator: () => void;
   removeCalculator: (id: string) => void;
   updateCalculator: (id: string, data: Partial<CalculatorData>) => void;
   reorderCalculators: (startIndex: number, endIndex: number) => void;
-  setProfitThreshold: (value: number) => void;
   toggleSound: () => void;
+  getTotalProfit: () => number;
 }
 
 const createEmptyCalculator = (order: number): CalculatorData => ({
@@ -35,13 +36,14 @@ const createEmptyCalculator = (order: number): CalculatorData => ({
   fechamentoFuturo: '',
   trackingActive: false,
   order,
+  profitThresholdPercent: 0.1, // Default 0.1%
+  currentProfit: 0,
 });
 
 export const useCalculatorStore = create<CalculatorStore>()(
   persist(
     (set, get) => ({
       calculators: [createEmptyCalculator(0)],
-      profitThreshold: 1,
       soundEnabled: true,
 
       addCalculator: () => {
@@ -81,12 +83,13 @@ export const useCalculatorStore = create<CalculatorStore>()(
         });
       },
 
-      setProfitThreshold: (value: number) => {
-        set({ profitThreshold: value });
-      },
-
       toggleSound: () => {
         set((state) => ({ soundEnabled: !state.soundEnabled }));
+      },
+
+      getTotalProfit: () => {
+        const { calculators } = get();
+        return calculators.reduce((sum, calc) => sum + (calc.currentProfit || 0), 0);
       },
     }),
     {
