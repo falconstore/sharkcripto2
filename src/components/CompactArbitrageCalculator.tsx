@@ -275,7 +275,7 @@ const CompactArbitrageCalculator = ({
             <div className="gap-2 p-2 rounded-md border border-border/50 bg-accent/20 flex items-center justify-start mr-[250px] pr-[5px]">
               <Bell className="w-3 h-3 text-muted-foreground" />
               <Label className="text-[10px]">Alerta:</Label>
-              <Input type="number" value={thresholdInput} onChange={e => handleThresholdChange(e.target.value)} className="h-6 w-16 text-xs font-mono" step="0.01" min="0" />
+              <Input type="number" value={thresholdInput} onChange={e => handleThresholdChange(e.target.value)} step="0.01" min="0" className="h-6 w-16 text-xs font-mono" />
               <span className="text-[10px] text-muted-foreground">%</span>
             </div>
           </div>}
@@ -297,34 +297,34 @@ const CompactArbitrageCalculator = ({
 
         {/* Resultados */}
         <div className={`p-2 rounded-md border border-border/50 ${showProfitAlert ? 'bg-profit/10 border-profit/30' : 'bg-accent/30'}`}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-muted-foreground">Spread Entrada:</span>
+          <div className="flex items-center justify-between mb-1 my-0 py-[2px]">
+            <span className="text-muted-foreground text-xs">Spread Entrada:</span>
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${spreadEntrada >= 0 ? 'bg-profit/20 text-profit border-profit/30' : 'bg-negative-subtle text-negative border-red-500/30'}`}>
               {spreadEntrada >= 0 ? <ThumbsUp className="w-2 h-2 mr-0.5" /> : <TrendingDown className="w-2 h-2 mr-0.5" />}
               {spreadEntrada.toFixed(4)}%
             </Badge>
           </div>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-muted-foreground">Spread Saída:</span>
+          <div className="flex items-center justify-between mb-1 py-[2px]">
+            <span className="text-muted-foreground text-xs">Spread Saída:</span>
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${spreadSaida >= 0 ? 'bg-profit/20 text-profit border-profit/30' : 'bg-negative-subtle text-negative border-red-500/30'}`}>
               {spreadSaida >= 0 ? <TrendingUp className="w-2 h-2 mr-0.5" /> : <TrendingDown className="w-2 h-2 mr-0.5" />}
               {spreadSaida.toFixed(4)}%
             </Badge>
           </div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] text-muted-foreground">Var. Total:</span>
+          <div className="flex items-center justify-between mb-2 py-[2px]">
+            <span className="text-muted-foreground text-xs">Var. Total:</span>
             <span className={`font-mono text-xs font-semibold ${varTotal >= 0 ? 'text-profit' : 'text-negative'}`}>
               {varTotal.toFixed(4)}%
             </span>
           </div>
           <div className="pt-2 border-t border-border/50">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium">Lucro:</span>
+              <span className="font-semibold text-base">Lucro:</span>
               <div className="text-right">
                 <p className={`font-mono text-sm font-bold ${lucroUSD >= 0 ? 'text-profit' : 'text-negative'}`}>
                   {lucroUSD.toFixed(2)} USDT
                 </p>
-                <p className="font-mono text-[10px] text-muted-foreground">
+                <p className="font-mono text-[10px] text-muted-foreground py-[3px]">
                   R$ {lucroBRL.toFixed(2)}
                 </p>
               </div>
