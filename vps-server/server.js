@@ -42,6 +42,10 @@ const CONFIG = {
   // Reconnection
   reconnectDelayMs: 5000,
   pingIntervalMs: 30000,
+  
+  // Subscription settings (chunks to avoid connection drops)
+  subscriptionChunkSize: 50,    // Símbolos por chunk
+  subscriptionDelayMs: 200,     // Delay entre chunks (ms)
 };
 
 // ==============================================
@@ -95,6 +99,38 @@ function decompressGzip(data) {
 
 function formatSymbol(symbol) {
   return symbol.replace('_USDT', '').replace('USDT', '');
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function subscribeInChunks(ws, symbols, createMessage, chunkSize, delayMs, name) {
+  const chunks = [];
+  for (let i = 0; i < symbols.length; i += chunkSize) {
+    chunks.push(symbols.slice(i, i + chunkSize));
+  }
+  
+  log('INFO', `[${name}] Iniciando subscrição: ${symbols.length} símbolos em ${chunks.length} chunks`);
+  
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    
+    for (const symbol of chunk) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(createMessage(symbol)));
+      }
+    }
+    
+    log('DEBUG', `[${name}] Chunk ${i + 1}/${chunks.length} enviado (${chunk.length} símbolos)`);
+    
+    // Delay entre chunks (exceto no último)
+    if (i < chunks.length - 1) {
+      await sleep(delayMs);
+    }
+  }
+  
+  log('INFO', `[${name}] ✅ Subscrição completa: ${symbols.length} símbolos`);
 }
 
 // ==============================================
@@ -225,19 +261,21 @@ function connectSpotWebSocket(symbols) {
   
   spotWs = new WebSocket(CONFIG.mexcSpotWs);
   
-  spotWs.on('open', () => {
+  spotWs.on('open', async () => {
     log('INFO', '✅ WebSocket Spot conectado');
     
-    // Subscribe to each symbol using protobuf channel
-    for (const symbol of symbols) {
-      const subscribeMsg = {
+    // Subscribe using chunks to avoid connection drops
+    await subscribeInChunks(
+      spotWs,
+      symbols,
+      (symbol) => ({
         method: 'SUBSCRIPTION',
         params: [`spot@public.limit.depth.v3.api.pb@${symbol}@5`]
-      };
-      spotWs.send(JSON.stringify(subscribeMsg));
-    }
-    
-    log('INFO', `Subscrito em ${symbols.length} símbolos spot`);
+      }),
+      CONFIG.subscriptionChunkSize,
+      CONFIG.subscriptionDelayMs,
+      'SPOT'
+    );
     
     // Setup ping interval
     spotPingInterval = setInterval(() => {
@@ -344,22 +382,26 @@ function connectFuturesWebSocket(symbols) {
   
   futuresWs = new WebSocket(CONFIG.mexcFuturesWs);
   
-  futuresWs.on('open', () => {
+  futuresWs.on('open', async () => {
     log('INFO', '✅ WebSocket Futures conectado');
     
-    for (const symbol of symbols) {
-      const subscribeMsg = {
+    // Subscribe using chunks to avoid connection drops
+    await subscribeInChunks(
+      futuresWs,
+      symbols,
+      (symbol) => ({
         method: 'sub.depth.full',
         param: {
           symbol: symbol,
           limit: 5
         }
-      };
-      futuresWs.send(JSON.stringify(subscribeMsg));
-    }
+      }),
+      CONFIG.subscriptionChunkSize,
+      CONFIG.subscriptionDelayMs,
+      'FUTURES'
+    );
     
-    log('INFO', `Subscrito em ${symbols.length} símbolos futures`);
-    
+    // Setup ping interval
     futuresPingInterval = setInterval(() => {
       if (futuresWs.readyState === WebSocket.OPEN) {
         futuresWs.send(JSON.stringify({ method: 'ping' }));
