@@ -52,13 +52,11 @@ const Dashboard = () => {
       <PageTransition>
         <main className="container mx-auto px-4 py-8 space-y-8 relative z-10">
           {/* Botões de Ação */}
-          <div className="flex justify-center gap-3">
+          <div className="flex justify-center items-center gap-3">
+            <MonitoringStatus />
             <StartMonitoringButton />
             <ImprovedArbitrageCalculator />
           </div>
-
-          {/* Status do Monitoramento */}
-          <MonitoringStatus />
 
           {/* Stats Cards */}
           <DashboardStats />

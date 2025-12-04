@@ -8,8 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Calculator, TrendingUp, TrendingDown, DollarSign, Play, Pause, Save, History as HistoryIcon } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, DollarSign, Play, Pause, Save, History as HistoryIcon, Wallet } from 'lucide-react';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useCalculationHistory } from '@/hooks/useCalculationHistory';
@@ -37,7 +36,6 @@ const ImprovedArbitrageCalculator = () => {
     addOperation
   } = useBankroll();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [saveToBank, setSaveToBank] = useState(false);
 
   // Estados básicos
   const [valorInvestido, setValorInvestido] = useState<string>('');
@@ -239,51 +237,49 @@ const ImprovedArbitrageCalculator = () => {
                   </div>
                 </div>
 
-                {/* Checkbox Salvar na Banca */}
-                <div className="flex items-center space-x-2 pt-2">
-                  <Checkbox id="save-to-bank" checked={saveToBank} onCheckedChange={checked => setSaveToBank(checked as boolean)} />
-                  <Label htmlFor="save-to-bank" className="text-sm font-medium leading-none cursor-pointer">
-                    Salvar operação na banca
-                  </Label>
-                </div>
-
                 {/* Botões */}
-                <div className="flex gap-3 pt-2">
+                <div className="flex flex-wrap gap-3 pt-2">
                   <Button onClick={() => calcular()} className="flex-1 bg-gradient-primary" disabled={trackingActive}>
                     <Calculator className="w-4 h-4 mr-2" />
                     {trackingActive ? 'Calculando...' : 'Calcular'}
                   </Button>
                   <Button onClick={() => {
-                  const calc = {
-                    pair_symbol: selectedPair || null,
-                    valor_investido: parseFloat(valorInvestido) || 0,
-                    entrada_spot: parseFloat(entradaSpot) || 0,
-                    entrada_futuro: parseFloat(entradaFuturo) || 0,
-                    fechamento_spot: parseFloat(fechamentoSpot) || null,
-                    fechamento_futuro: parseFloat(fechamentoFuturo) || null,
-                    lucro_usd: lucroUSD,
-                    lucro_brl: lucroBRL,
-                    var_entrada: varEntrada,
-                    var_fechamento: varFech,
-                    var_total: varTotal,
-                    exchange_rate: taxaCambioAtual
-                  };
-                  saveCalculation(calc);
-
-                  // Se marcado, salvar também na banca
-                  if (saveToBank) {
-                    addOperation({
-                      operation_type: 'trade',
-                      amount_usdt: parseFloat(valorInvestido) || 0,
-                      profit_usdt: lucroUSD,
-                      profit_brl: lucroBRL,
-                      pair_symbol: selectedPair,
-                      notes: `Trade ${selectedPair} - Var: ${varTotal.toFixed(2)}%`
-                    });
-                  }
-                }} variant="outline" disabled={lucroUSD === 0}>
+                    const calc = {
+                      pair_symbol: selectedPair || null,
+                      valor_investido: parseFloat(valorInvestido) || 0,
+                      entrada_spot: parseFloat(entradaSpot) || 0,
+                      entrada_futuro: parseFloat(entradaFuturo) || 0,
+                      fechamento_spot: parseFloat(fechamentoSpot) || null,
+                      fechamento_futuro: parseFloat(fechamentoFuturo) || null,
+                      lucro_usd: lucroUSD,
+                      lucro_brl: lucroBRL,
+                      var_entrada: varEntrada,
+                      var_fechamento: varFech,
+                      var_total: varTotal,
+                      exchange_rate: taxaCambioAtual
+                    };
+                    saveCalculation(calc);
+                  }} variant="outline" disabled={lucroUSD === 0}>
                     <Save className="w-4 h-4 mr-2" />
                     Salvar
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      addOperation({
+                        operation_type: 'trade',
+                        amount_usdt: parseFloat(valorInvestido) || 0,
+                        profit_usdt: lucroUSD,
+                        profit_brl: lucroBRL,
+                        pair_symbol: selectedPair,
+                        notes: `Trade ${selectedPair} - Var: ${varTotal.toFixed(2)}%`
+                      });
+                    }} 
+                    variant="outline" 
+                    disabled={lucroUSD === 0}
+                    className="bg-gold/10 text-gold border-gold/30 hover:bg-gold/20"
+                  >
+                    <Wallet className="w-4 h-4 mr-2" />
+                    Salvar na Banca
                   </Button>
                   <Button onClick={limpar} variant="outline">
                     Limpar

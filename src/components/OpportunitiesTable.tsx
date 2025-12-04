@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Ban, TrendingUp, BarChart3, History, ChevronLeft, ChevronRight, Search, ArrowUpDown, X, Columns, Eye, EyeOff } from 'lucide-react';
+import { Star, Ban, TrendingUp, BarChart3, History, ChevronLeft, ChevronRight, Search, ArrowUpDown, X, Columns, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -429,14 +429,6 @@ const OpportunitiesTable = () => {
           
           {/* Filtros avançados */}
           <AdvancedFilters />
-          
-          {/* Pilha de ordenação e dica */}
-          <div className="flex items-center justify-between">
-            <SortStack />
-            <p className="text-xs text-muted-foreground">
-              💡 CTRL/CMD + Click nas colunas para ordenar por múltiplos campos
-            </p>
-          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -682,17 +674,41 @@ const OpportunitiesTable = () => {
                         </TableCell>
                       )}
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            toggleBlacklist(opp.pair_symbol);
-                            toast.info(`${opp.pair_symbol} adicionado à blacklist`);
-                          }}
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                        >
-                          <Ban className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  const symbol = opp.pair_symbol.replace('_USDT', '').replace('USDT', '');
+                                  window.open(`https://www.mexc.com/pt-BR/exchange/${symbol}_USDT`, '_blank');
+                                  window.open(`https://futures.mexc.com/pt-BR/exchange/${symbol}_USDT`, '_blank');
+                                }}
+                                className="h-8 w-8 text-gold hover:text-gold hover:bg-gold/10"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Abrir Spot e Futures</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  toggleBlacklist(opp.pair_symbol);
+                                  toast.info(`${opp.pair_symbol} adicionado à blacklist`);
+                                }}
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                              >
+                                <Ban className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Adicionar à Blacklist</TooltipContent>
+                          </Tooltip>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
