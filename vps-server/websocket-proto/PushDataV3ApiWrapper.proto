@@ -9,6 +9,7 @@ message PushDataV3ApiWrapper {
   int64 createTime = 4;
   bool sendTime = 5;
   bytes data = 6;
+  PublicLimitDepthsV3Api publicLimitDepths = 7;
 }
 
 message PublicLimitDepthsV3Api {
@@ -19,8 +20,8 @@ message PublicLimitDepthsV3Api {
 }
 
 message Depth {
-  string p = 1;  // price
-  string v = 2;  // volume
+  string price = 1;
+  string volume = 2;
 }
 
 message PublicAggreDepthsV3Api {
