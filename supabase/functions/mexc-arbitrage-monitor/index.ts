@@ -232,27 +232,24 @@ Deno.serve(async (req) => {
         opportunities.push(opp);
       }
 
-      // Salvar no banco de dados
+      // Salvar no banco de dados usando DELETE + INSERT (mais confiável)
       if (opportunities.length > 0) {
         console.log(`\n💾 Salvando ${opportunities.length} oportunidades no banco...`);
         
-        // Desativar oportunidades antigas
-        const { error: updateError } = await supabase
+        // 1. Deletar todas as oportunidades existentes
+        const { error: deleteError } = await supabase
           .from('arbitrage_opportunities')
-          .update({ is_active: false })
-          .eq('is_active', true);
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000');
 
-        if (updateError) {
-          console.error('Erro ao desativar oportunidades antigas:', updateError);
+        if (deleteError) {
+          console.error('Erro ao deletar oportunidades antigas:', deleteError);
         }
 
-        // Inserir novas oportunidades
+        // 2. Inserir novas oportunidades
         const { error: insertError } = await supabase
           .from('arbitrage_opportunities')
-          .upsert(opportunities, { 
-            onConflict: 'pair_symbol',
-            ignoreDuplicates: false 
-          });
+          .insert(opportunities);
 
         if (insertError) {
           console.error('Erro ao inserir oportunidades:', insertError);

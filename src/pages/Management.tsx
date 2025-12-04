@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Calculator, Settings2, Volume2, VolumeX, TrendingUp, DollarSign } from 'lucide-react';
+import { Plus, Calculator, Settings2, Volume2, VolumeX, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,7 @@ import { PageTransition } from '@/components/PageTransition';
 import DashboardHeader from '@/components/DashboardHeader';
 import CompactArbitrageCalculator from '@/components/CompactArbitrageCalculator';
 import { useCalculatorStore } from '@/hooks/useCalculatorStore';
+import { useUserCalculators } from '@/hooks/useUserCalculators';
 
 const ManagementPage = () => {
   const { user, loading } = useAuth();
@@ -26,6 +27,9 @@ const ManagementPage = () => {
     toggleSound,
     getTotalProfit
   } = useCalculatorStore();
+  
+  // Hook para sincronização com banco de dados
+  useUserCalculators();
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -96,7 +100,7 @@ const ManagementPage = () => {
                   <div>
                     <p className="text-sm text-muted-foreground">Lucro Total (Calculadoras)</p>
                     <p className={`text-2xl font-bold font-mono ${totalProfit >= 0 ? 'text-profit' : 'text-negative'}`}>
-                      ${totalProfit.toFixed(2)}
+                      {totalProfit.toFixed(2)} USDT
                     </p>
                   </div>
                 </div>

@@ -66,9 +66,9 @@ const CalculationHistoryModal = ({
                           <span className="font-mono ml-1">${calc.valor_investido.toFixed(2)}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Lucro USD:</span>
+                          <span className="text-muted-foreground">Lucro USDT:</span>
                           <span className={`font-mono ml-1 font-semibold ${calc.lucro_usd >= 0 ? 'text-profit' : 'text-destructive'}`}>
-                            ${calc.lucro_usd.toFixed(2)}
+                            {calc.lucro_usd.toFixed(2)} USDT
                           </span>
                         </div>
                         <div>
