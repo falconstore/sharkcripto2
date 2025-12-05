@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.discord-sync]
 verify_jwt = false
+
+[functions.cleanup-crossings]
+verify_jwt = false
+
+[functions.mexc-arbitrage-monitor]
+verify_jwt = false

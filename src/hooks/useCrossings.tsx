@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface Crossing {
@@ -15,28 +15,26 @@ export interface CrossingsCount {
 
 type Period = '15m' | '30m' | '1h' | '2h';
 
-const PERIOD_INTERVALS: Record<Period, string> = {
-  '15m': '15 minutes',
-  '30m': '30 minutes',
-  '1h': '1 hour',
-  '2h': '2 hours',
-};
-
 export const useCrossings = () => {
   const [crossingsCount, setCrossingsCount] = useState<CrossingsCount>({});
   const [loading, setLoading] = useState(false);
 
-  // Buscar contagem de cruzamentos para todas as moedas na última hora
-  const fetchCrossingsCount = async (period: Period = '1h') => {
+  // Função para calcular timestamp baseado no período
+  const getTimeAgo = useCallback((period: Period): Date => {
+    const timeAgo = new Date();
+    if (period === '15m') timeAgo.setMinutes(timeAgo.getMinutes() - 15);
+    else if (period === '30m') timeAgo.setMinutes(timeAgo.getMinutes() - 30);
+    else if (period === '1h') timeAgo.setHours(timeAgo.getHours() - 1);
+    else if (period === '2h') timeAgo.setHours(timeAgo.getHours() - 2);
+    return timeAgo;
+  }, []);
+
+  // Buscar contagem de cruzamentos para todas as moedas
+  const fetchCrossingsCount = useCallback(async (period: Period = '1h') => {
     try {
       setLoading(true);
       
-      // Calcular timestamp usando Date ao invés de string SQL
-      const timeAgo = new Date();
-      if (period === '15m') timeAgo.setMinutes(timeAgo.getMinutes() - 15);
-      else if (period === '30m') timeAgo.setMinutes(timeAgo.getMinutes() - 30);
-      else if (period === '1h') timeAgo.setHours(timeAgo.getHours() - 1);
-      else if (period === '2h') timeAgo.setHours(timeAgo.getHours() - 2);
+      const timeAgo = getTimeAgo(period);
       
       const { data, error } = await supabase
         .from('pair_crossings')
@@ -57,20 +55,15 @@ export const useCrossings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getTimeAgo]);
 
   // Buscar histórico detalhado de cruzamentos para uma moeda específica
-  const fetchCrossingHistory = async (
+  const fetchCrossingHistory = useCallback(async (
     pairSymbol: string,
     period: Period = '1h'
   ): Promise<Crossing[]> => {
     try {
-      // Calcular timestamp usando Date ao invés de string SQL
-      const timeAgo = new Date();
-      if (period === '15m') timeAgo.setMinutes(timeAgo.getMinutes() - 15);
-      else if (period === '30m') timeAgo.setMinutes(timeAgo.getMinutes() - 30);
-      else if (period === '1h') timeAgo.setHours(timeAgo.getHours() - 1);
-      else if (period === '2h') timeAgo.setHours(timeAgo.getHours() - 2);
+      const timeAgo = getTimeAgo(period);
       
       const { data, error } = await supabase
         .from('pair_crossings')
@@ -85,17 +78,44 @@ export const useCrossings = () => {
       console.error('Erro ao buscar histórico de cruzamentos:', error);
       return [];
     }
-  };
+  }, [getTimeAgo]);
 
-  // Atualizar contagem automaticamente a cada 30 segundos
+  // Setup realtime subscription + polling
   useEffect(() => {
+    // Fetch inicial
     fetchCrossingsCount();
+
+    // Configurar realtime para atualizações instantâneas
+    const channel = supabase
+      .channel('crossings-realtime-count')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'pair_crossings',
+        },
+        (payload) => {
+          // Atualizar contagem incrementalmente
+          const newCrossing = payload.new as { pair_symbol: string };
+          setCrossingsCount(prev => ({
+            ...prev,
+            [newCrossing.pair_symbol]: (prev[newCrossing.pair_symbol] || 0) + 1
+          }));
+        }
+      )
+      .subscribe();
+
+    // Polling como backup (a cada 15 segundos)
     const interval = setInterval(() => {
       fetchCrossingsCount();
-    }, 30000);
+    }, 15000);
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [fetchCrossingsCount]);
 
   return {
     crossingsCount,

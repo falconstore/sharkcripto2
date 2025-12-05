@@ -23,29 +23,42 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Deletar cruzamentos mais antigos que 5 dias
-    const fiveDaysAgo = new Date();
-    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+    // Parse body para opções customizadas
+    let hoursToKeep = 24; // Padrão: manter apenas últimas 24 horas
+    try {
+      const body = await req.json();
+      if (body.hoursToKeep && typeof body.hoursToKeep === 'number') {
+        hoursToKeep = body.hoursToKeep;
+      }
+    } catch {
+      // Sem body, usar padrão
+    }
+
+    // 1. Deletar cruzamentos mais antigos que X horas
+    const cutoffTime = new Date();
+    cutoffTime.setHours(cutoffTime.getHours() - hoursToKeep);
+
+    console.log(`🗑️ Deletando cruzamentos mais antigos que ${hoursToKeep}h (antes de ${cutoffTime.toISOString()})`);
 
     const { data: deletedOldData, error: deleteOldError } = await supabase
       .from('pair_crossings')
       .delete()
-      .lt('timestamp', fiveDaysAgo.toISOString())
-      .select();
+      .lt('timestamp', cutoffTime.toISOString())
+      .select('id');
 
     if (deleteOldError) {
       console.error('Erro ao deletar cruzamentos antigos:', deleteOldError);
     }
 
     const deletedOldCount = deletedOldData?.length || 0;
-    console.log(`✅ Deletados ${deletedOldCount} cruzamentos antigos (> 5 dias)`);
+    console.log(`✅ Deletados ${deletedOldCount} cruzamentos antigos (> ${hoursToKeep}h)`);
 
     // 2. Deletar cruzamentos com spreads inválidos (> 10% ou < 0%)
     const { data: deletedInvalidData, error: deleteInvalidError } = await supabase
       .from('pair_crossings')
       .delete()
       .or('spread_net_percent_saida.gt.10,spread_net_percent_saida.lt.0')
-      .select();
+      .select('id');
 
     if (deleteInvalidError) {
       console.error('Erro ao deletar cruzamentos inválidos:', deleteInvalidError);
@@ -54,15 +67,46 @@ Deno.serve(async (req) => {
     const deletedInvalidCount = deletedInvalidData?.length || 0;
     console.log(`✅ Deletados ${deletedInvalidCount} cruzamentos com spreads inválidos`);
 
+    // 3. Limpar cooldowns antigos (mais de 1 hora)
+    const cooldownCutoff = new Date();
+    cooldownCutoff.setHours(cooldownCutoff.getHours() - 1);
+
+    const { data: deletedCooldowns, error: deleteCooldownError } = await supabase
+      .from('crossing_cooldowns')
+      .delete()
+      .lt('last_crossing_at', cooldownCutoff.toISOString())
+      .select('pair_symbol');
+
+    if (deleteCooldownError) {
+      console.error('Erro ao deletar cooldowns antigos:', deleteCooldownError);
+    }
+
+    const deletedCooldownsCount = deletedCooldowns?.length || 0;
+    console.log(`✅ Deletados ${deletedCooldownsCount} cooldowns antigos`);
+
+    // 4. Contar registros restantes
+    const { count: remainingCount } = await supabase
+      .from('pair_crossings')
+      .select('*', { count: 'exact', head: true });
+
     const totalDeleted = deletedOldCount + deletedInvalidCount;
+
+    console.log(`📊 Resumo:`);
+    console.log(`   - Cruzamentos antigos removidos: ${deletedOldCount}`);
+    console.log(`   - Cruzamentos inválidos removidos: ${deletedInvalidCount}`);
+    console.log(`   - Cooldowns antigos removidos: ${deletedCooldownsCount}`);
+    console.log(`   - Total removido: ${totalDeleted}`);
+    console.log(`   - Registros restantes: ${remainingCount || 0}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         deleted_old: deletedOldCount,
         deleted_invalid: deletedInvalidCount,
+        deleted_cooldowns: deletedCooldownsCount,
         total_deleted: totalDeleted,
-        message: `Limpeza concluída: ${totalDeleted} registros removidos`
+        remaining_records: remainingCount || 0,
+        message: `Limpeza concluída: ${totalDeleted} registros removidos, ${remainingCount || 0} restantes`
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
