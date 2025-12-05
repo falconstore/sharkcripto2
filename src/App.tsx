@@ -13,6 +13,7 @@ import Statistics from "./pages/Statistics";
 import ListingsPage from "./pages/ListingsPage";
 import AdminPage from "./pages/AdminPage";
 import ManagementPage from "./pages/Management";
+import DiscordRanking from "./pages/DiscordRanking";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,11 @@ const App = () => (
               <Route path="/management" element={
                 <ProtectedRoute>
                   <ManagementPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/discord-ranking" element={
+                <ProtectedRoute>
+                  <DiscordRanking />
                 </ProtectedRoute>
               } />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
