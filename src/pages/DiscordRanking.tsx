@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trophy, RefreshCw, MessageSquare, Heart, AtSign, Clock } from "lucide-react";
+import { Trophy, RefreshCw, MessageSquare, Heart, AtSign, Clock, ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useDiscordRanking, useDiscordSyncConfig, useTriggerDiscordSync, type PeriodFilter } from "@/hooks/useDiscordRanking";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
+import DashboardHeader from "@/components/DashboardHeader";
+import { StarBackground } from "@/components/StarBackground";
+import { PageTransition } from "@/components/PageTransition";
 
 const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
   { value: "24h", label: "24h" },
@@ -34,6 +38,7 @@ function getRankBadge(position: number) {
 
 export default function DiscordRanking() {
   const [period, setPeriod] = useState<PeriodFilter>("30d");
+  const navigate = useNavigate();
   
   const { data: ranking, isLoading: isLoadingRanking } = useDiscordRanking(period);
   const { data: syncConfig } = useDiscordSyncConfig();
@@ -44,28 +49,35 @@ export default function DiscordRanking() {
     : "Nunca sincronizado";
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-          <div className="flex items-center gap-3">
-            <Trophy className="h-8 w-8 text-yellow-500" />
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Ranking Discord</h1>
-              <p className="text-sm text-muted-foreground">Atividade do canal</p>
+    <div className="min-h-screen bg-background relative">
+      <StarBackground />
+      <DashboardHeader />
+      
+      <PageTransition>
+        <main className="container mx-auto px-4 py-6 space-y-6 relative z-10 max-w-4xl">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <Trophy className="h-8 w-8 text-yellow-500" />
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Ranking Discord</h1>
+                <p className="text-sm text-muted-foreground">Atividade do canal</p>
+              </div>
             </div>
+            
+            <Button 
+              onClick={() => triggerSync()} 
+              disabled={isSyncing}
+              variant="outline"
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+              {isSyncing ? "Sincronizando..." : "Sincronizar"}
+            </Button>
           </div>
-          
-          <Button 
-            onClick={() => triggerSync()} 
-            disabled={isSyncing}
-            variant="outline"
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-            {isSyncing ? "Sincronizando..." : "Sincronizar"}
-          </Button>
-        </div>
 
         {/* Sync Status */}
         <div className="flex items-center gap-2 mb-6 text-sm text-muted-foreground">
@@ -198,7 +210,8 @@ export default function DiscordRanking() {
             <span>Menções</span>
           </div>
         </div>
-      </div>
+        </main>
+      </PageTransition>
     </div>
   );
 }
