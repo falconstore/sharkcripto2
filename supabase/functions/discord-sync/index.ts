@@ -119,9 +119,10 @@ Deno.serve(async (req) => {
 
     const channelId = (body as any).channelId || DEFAULT_CHANNEL_ID
     const guildId = (body as any).guildId || DEFAULT_GUILD_ID
-    const maxMessages = (body as any).maxMessages || 500
+    const maxMessages = (body as any).maxMessages || 200
+    const skipReactions = (body as any).skipReactions || false
 
-    console.log(`Starting sync for channel ${channelId} in guild ${guildId}`)
+    console.log(`Starting sync for channel ${channelId} in guild ${guildId} (skipReactions: ${skipReactions})`)
 
     // Fetch messages with pagination
     const allMessages: DiscordMessage[] = []
@@ -191,8 +192,8 @@ Deno.serve(async (req) => {
         })
       }
 
-      // Fetch reaction users for each reaction
-      if (msg.reactions && msg.reactions.length > 0) {
+      // Fetch reaction users for each reaction (skip if skipReactions is true)
+      if (!skipReactions && msg.reactions && msg.reactions.length > 0) {
         for (const reaction of msg.reactions) {
           try {
             const reactionUsers = await fetchReactionUsers(channelId, msg.id, reaction.emoji.name, botToken)

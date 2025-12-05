@@ -7,6 +7,7 @@ import { useAdmin } from '@/hooks/useAdmin';
 import { useUserManagement, UserProfile, AdminAction } from '@/hooks/useUserManagement';
 import { useCoinListings, CoinListing } from '@/hooks/useCoinListings';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { toast } from '@/hooks/use-toast';
 import DashboardHeader from '@/components/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Users, UserCheck, UserX, Clock, CheckCircle, XCircle, Rocket, AlertTriangle, Plus, Edit2, Trash2, Calendar, Coins, Shield, ShieldOff, Search, History, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, UserCheck, UserX, Clock, CheckCircle, XCircle, Rocket, AlertTriangle, Plus, Edit2, Trash2, Calendar, Coins, Shield, ShieldOff, Search, History, ChevronLeft, ChevronRight, Trophy, RefreshCw, Copy, Settings } from 'lucide-react';
+import { useDiscordConfig, useUpdateDiscordConfig, useTriggerDiscordSyncWithOptions } from '@/hooks/useDiscordConfig';
+import { formatDistanceToNow } from 'date-fns';
+import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 type FilterStatus = 'all' | 'pending' | 'approved' | 'blocked';
@@ -50,11 +54,19 @@ const AdminPage = () => {
     demoteFromAdmin 
   } = useUserManagement();
   const { listings, newListings, delistings, addListing, updateListing, deleteListing } = useCoinListings();
+  const { data: discordConfig, isLoading: discordConfigLoading } = useDiscordConfig();
+  const updateDiscordConfig = useUpdateDiscordConfig();
+  const triggerDiscordSync = useTriggerDiscordSyncWithOptions();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [activeTab, setActiveTab] = useState('users');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Discord config state
+  const [discordGuildId, setDiscordGuildId] = useState('');
+  const [discordChannelId, setDiscordChannelId] = useState('');
+  const [skipReactions, setSkipReactions] = useState(true);
 
   // Pagination states
   const [usersPage, setUsersPage] = useState(1);
@@ -118,6 +130,14 @@ const AdminPage = () => {
   useEffect(() => {
     setUsersPage(1);
   }, [filter, searchQuery]);
+
+  // Load Discord config values
+  useEffect(() => {
+    if (discordConfig) {
+      setDiscordGuildId(discordConfig.guild_id);
+      setDiscordChannelId(discordConfig.channel_id);
+    }
+  }, [discordConfig]);
 
   if (authLoading || adminLoading || usersLoading) {
     return <LoadingScreen />;
@@ -309,7 +329,7 @@ const AdminPage = () => {
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className={`grid w-full ${isMobile ? 'grid-cols-3' : 'max-w-lg grid-cols-3'}`}>
+            <TabsList className={`grid w-full ${isMobile ? 'grid-cols-4' : 'max-w-2xl grid-cols-4'}`}>
               <TabsTrigger value="users" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                 <Users className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden sm:inline">Usuários</span>
@@ -319,6 +339,10 @@ const AdminPage = () => {
                 <Coins className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden sm:inline">Listings</span>
                 <Badge variant="secondary" className="ml-1 text-xs">{listings.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="discord" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Trophy className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Discord</span>
               </TabsTrigger>
               <TabsTrigger value="history" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                 <History className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -827,6 +851,143 @@ const AdminPage = () => {
                       )}
                     </TableBody>
                   </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Discord Tab */}
+            <TabsContent value="discord" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Configuration Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                      <Settings className="w-5 h-5" />
+                      Configuração do Discord
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="guildId">Guild ID (Servidor)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="guildId"
+                          value={discordGuildId}
+                          onChange={(e) => setDiscordGuildId(e.target.value)}
+                          placeholder="Ex: 1343016171892510806"
+                        />
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => {
+                            navigator.clipboard.writeText(discordGuildId);
+                            toast({ title: "Copiado!" });
+                          }}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="channelId">Channel ID (Canal)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="channelId"
+                          value={discordChannelId}
+                          onChange={(e) => setDiscordChannelId(e.target.value)}
+                          placeholder="Ex: 1343240456569356432"
+                        />
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => {
+                            navigator.clipboard.writeText(discordChannelId);
+                            toast({ title: "Copiado!" });
+                          }}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <Button 
+                      onClick={() => updateDiscordConfig.mutate({ 
+                        guildId: discordGuildId, 
+                        channelId: discordChannelId 
+                      })}
+                      disabled={updateDiscordConfig.isPending}
+                      className="w-full"
+                    >
+                      {updateDiscordConfig.isPending ? "Salvando..." : "Salvar Configuração"}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Sync Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                      <RefreshCw className="w-5 h-5" />
+                      Sincronização
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {discordConfig?.last_sync_at && (
+                      <div className="p-3 rounded-lg bg-muted/50 space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Última sincronização: <span className="text-foreground font-medium">
+                            {formatDistanceToNow(new Date(discordConfig.last_sync_at), { addSuffix: true, locale: ptBR })}
+                          </span>
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between p-3 rounded-lg border border-border">
+                      <div>
+                        <p className="font-medium text-sm">Sync rápida (pular reações)</p>
+                        <p className="text-xs text-muted-foreground">Muito mais rápido, mas não conta reações</p>
+                      </div>
+                      <Switch
+                        checked={skipReactions}
+                        onCheckedChange={setSkipReactions}
+                      />
+                    </div>
+
+                    <Button 
+                      onClick={() => triggerDiscordSync.mutate({
+                        guildId: discordGuildId,
+                        channelId: discordChannelId,
+                        maxMessages: 200,
+                        skipReactions
+                      })}
+                      disabled={triggerDiscordSync.isPending || !discordGuildId || !discordChannelId}
+                      className="w-full gap-2"
+                      variant="outline"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${triggerDiscordSync.isPending ? "animate-spin" : ""}`} />
+                      {triggerDiscordSync.isPending ? "Sincronizando..." : "Sincronizar Agora"}
+                    </Button>
+
+                    <div className="p-3 rounded-lg bg-warning/10 border border-warning/30">
+                      <p className="text-xs text-warning flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        A sincronização pode levar {skipReactions ? "10-30 segundos" : "2-3 minutos"} dependendo do volume de dados.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* How to get IDs */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Como obter os IDs do Discord</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm text-muted-foreground">
+                  <p>1. No Discord, vá em <strong>Configurações do Usuário → Avançado</strong> e ative o <strong>Modo Desenvolvedor</strong></p>
+                  <p>2. Para obter o <strong>Guild ID</strong>: Clique com botão direito no nome do servidor e selecione "Copiar ID do servidor"</p>
+                  <p>3. Para obter o <strong>Channel ID</strong>: Clique com botão direito no canal desejado e selecione "Copiar ID do canal"</p>
                 </CardContent>
               </Card>
             </TabsContent>
