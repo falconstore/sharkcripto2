@@ -2,3 +2,6 @@ project_id = "jschuymzkukzthesevoy"
 
 [functions.vps-monitor-sync]
 verify_jwt = false
+
+[functions.discord-sync]
+verify_jwt = false

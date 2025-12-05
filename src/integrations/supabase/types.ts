@@ -271,6 +271,78 @@ export type Database = {
         }
         Relationships: []
       }
+      discord_channel_activity: {
+        Row: {
+          activity_date: string | null
+          activity_type: string
+          channel_id: string
+          created_at: string | null
+          discord_avatar: string | null
+          discord_user_id: string
+          discord_username: string
+          guild_id: string
+          id: string
+          message_id: string | null
+        }
+        Insert: {
+          activity_date?: string | null
+          activity_type: string
+          channel_id: string
+          created_at?: string | null
+          discord_avatar?: string | null
+          discord_user_id: string
+          discord_username: string
+          guild_id: string
+          id?: string
+          message_id?: string | null
+        }
+        Update: {
+          activity_date?: string | null
+          activity_type?: string
+          channel_id?: string
+          created_at?: string | null
+          discord_avatar?: string | null
+          discord_user_id?: string
+          discord_username?: string
+          guild_id?: string
+          id?: string
+          message_id?: string | null
+        }
+        Relationships: []
+      }
+      discord_sync_config: {
+        Row: {
+          channel_id: string
+          channel_name: string | null
+          created_at: string | null
+          guild_id: string
+          id: string
+          last_message_id: string | null
+          last_sync_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          channel_id: string
+          channel_name?: string | null
+          created_at?: string | null
+          guild_id: string
+          id?: string
+          last_message_id?: string | null
+          last_sync_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          channel_id?: string
+          channel_name?: string | null
+          created_at?: string | null
+          guild_id?: string
+          id?: string
+          last_message_id?: string | null
+          last_sync_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       mexc_operations: {
         Row: {
           created_at: string
