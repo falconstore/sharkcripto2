@@ -271,6 +271,21 @@ export type Database = {
         }
         Relationships: []
       }
+      crossing_cooldowns: {
+        Row: {
+          last_crossing_at: string
+          pair_symbol: string
+        }
+        Insert: {
+          last_crossing_at?: string
+          pair_symbol: string
+        }
+        Update: {
+          last_crossing_at?: string
+          pair_symbol?: string
+        }
+        Relationships: []
+      }
       discord_channel_activity: {
         Row: {
           activity_date: string | null

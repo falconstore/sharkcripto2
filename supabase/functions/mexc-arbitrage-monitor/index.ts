@@ -31,6 +31,12 @@ const FUTURES_TAKER_FEE = 0.02;
 // Spread máximo válido para registrar cruzamento (evitar dados absurdos)
 const MAX_VALID_SPREAD = 10;
 
+// Spread mínimo para registrar cruzamento (evitar micro-cruzamentos)
+const MIN_VALID_SPREAD = 0.05;
+
+// Cooldown em minutos entre cruzamentos da mesma moeda
+const CROSSING_COOLDOWN_MINUTES = 5;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -43,22 +49,53 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Mapa para rastrear último cruzamento de cada moeda (evitar duplicatas)
-    const lastCrossings = new Map<string, number>();
+    // Função para verificar cooldown persistente no banco
+    const checkCooldown = async (pairSymbol: string): Promise<boolean> => {
+      try {
+        const { data } = await supabase
+          .from('crossing_cooldowns')
+          .select('last_crossing_at')
+          .eq('pair_symbol', pairSymbol)
+          .maybeSingle();
 
-    // Função auxiliar para registrar cruzamento (VALIDADA)
+        if (!data) return true; // Nunca cruzou, pode registrar
+
+        const lastCrossing = new Date(data.last_crossing_at);
+        const now = new Date();
+        const diffMinutes = (now.getTime() - lastCrossing.getTime()) / (1000 * 60);
+
+        return diffMinutes >= CROSSING_COOLDOWN_MINUTES;
+      } catch (err) {
+        console.error(`Erro ao verificar cooldown para ${pairSymbol}:`, err);
+        return false; // Em caso de erro, não registrar
+      }
+    };
+
+    // Função para atualizar cooldown no banco
+    const updateCooldown = async (pairSymbol: string) => {
+      try {
+        await supabase
+          .from('crossing_cooldowns')
+          .upsert({
+            pair_symbol: pairSymbol,
+            last_crossing_at: new Date().toISOString(),
+          }, { onConflict: 'pair_symbol' });
+      } catch (err) {
+        console.error(`Erro ao atualizar cooldown para ${pairSymbol}:`, err);
+      }
+    };
+
+    // Função auxiliar para registrar cruzamento (VALIDADA com cooldown persistente)
     const registerCrossing = async (pairSymbol: string, spreadNetPercentSaida: number) => {
-      // VALIDAÇÃO: Só registrar spreads válidos (0% a 10%)
-      if (spreadNetPercentSaida <= 0 || spreadNetPercentSaida > MAX_VALID_SPREAD) {
-        return;
+      // VALIDAÇÃO: Só registrar spreads válidos (MIN% a MAX%)
+      if (spreadNetPercentSaida < MIN_VALID_SPREAD || spreadNetPercentSaida > MAX_VALID_SPREAD) {
+        return false;
       }
 
-      const now = Date.now();
-      const lastCrossing = lastCrossings.get(pairSymbol) || 0;
-      
-      // Só registrar se passou mais de 30 segundos desde o último cruzamento
-      if (now - lastCrossing < 30000) {
-        return;
+      // Verificar cooldown persistente no banco
+      const canRegister = await checkCooldown(pairSymbol);
+      if (!canRegister) {
+        return false;
       }
 
       try {
@@ -72,12 +109,16 @@ Deno.serve(async (req) => {
 
         if (error) {
           console.error(`Erro ao registrar cruzamento para ${pairSymbol}:`, error);
-        } else {
-          lastCrossings.set(pairSymbol, now);
-          console.log(`✅ CRUZAMENTO registrado: ${pairSymbol} - Saída: ${spreadNetPercentSaida.toFixed(2)}%`);
+          return false;
         }
+
+        // Atualizar cooldown no banco
+        await updateCooldown(pairSymbol);
+        console.log(`✅ CRUZAMENTO registrado: ${pairSymbol} - Saída: ${spreadNetPercentSaida.toFixed(2)}%`);
+        return true;
       } catch (err) {
         console.error(`Erro ao registrar cruzamento para ${pairSymbol}:`, err);
+        return false;
       }
     };
 
@@ -209,10 +250,12 @@ Deno.serve(async (req) => {
           spreadGrossShort = ((spotBidPrice - futuresAskPrice) / futuresAskPrice) * 100;
           spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
-          // Detectar e registrar cruzamento (apenas spreads válidos 0-10%)
-          if (spreadNetShort > 0 && spreadNetShort <= MAX_VALID_SPREAD) {
-            await registerCrossing(baseSymbol, spreadNetShort);
-            crossingsRegistered++;
+          // Detectar e registrar cruzamento (com cooldown persistente)
+          if (spreadNetShort >= MIN_VALID_SPREAD && spreadNetShort <= MAX_VALID_SPREAD) {
+            const registered = await registerCrossing(baseSymbol, spreadNetShort);
+            if (registered) {
+              crossingsRegistered++;
+            }
           }
         }
 
