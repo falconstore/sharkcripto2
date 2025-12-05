@@ -40,16 +40,26 @@ function getDateFilter(period: PeriodFilter): string | null {
   }
 }
 
-export function useDiscordRanking(period: PeriodFilter, channelId = "1343240456569356432") {
+export function useDiscordRanking(period: PeriodFilter, channelId?: string) {
   return useQuery({
     queryKey: ["discord-ranking", period, channelId],
     queryFn: async () => {
       const dateFilter = getDateFilter(period);
       
+      // If no channelId provided, get from config
+      let activeChannelId = channelId;
+      if (!activeChannelId) {
+        const { data: config } = await supabase
+          .from("discord_sync_config")
+          .select("channel_id")
+          .maybeSingle();
+        activeChannelId = config?.channel_id || "1343240456569356432";
+      }
+      
       let query = supabase
         .from("discord_channel_activity")
         .select("discord_user_id, discord_username, discord_avatar, activity_type")
-        .eq("channel_id", channelId);
+        .eq("channel_id", activeChannelId);
       
       if (dateFilter) {
         query = query.gte("activity_date", dateFilter);
