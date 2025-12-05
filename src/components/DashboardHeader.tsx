@@ -5,7 +5,7 @@ import { usePreferences } from '@/hooks/usePreferences';
 import { useAdmin } from '@/hooks/useAdmin';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, TrendingUp, BarChart3, Bell, Ban, Target, Wallet, ListChecks, Users, Calculator } from 'lucide-react';
+import { LogOut, TrendingUp, BarChart3, Bell, Ban, Target, Wallet, ListChecks, Users, Calculator, Trophy } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useNavigate, useLocation } from 'react-router-dom';
 import NotificationSettings from './NotificationSettings';
@@ -73,6 +73,11 @@ const DashboardHeader = () => {
               <Button variant={isActivePath('/management') ? 'default' : 'ghost'} size="sm" onClick={() => navigate('/management')}>
                 <Calculator className="w-4 h-4 mr-2" />
                 Gerenciamento
+              </Button>
+
+              <Button variant={isActivePath('/discord-ranking') ? 'default' : 'ghost'} size="sm" onClick={() => navigate('/discord-ranking')}>
+                <Trophy className="w-4 h-4 mr-2" />
+                Discord Ranking
               </Button>
 
               {isAdmin && <Button variant={isActivePath('/admin') ? 'default' : 'ghost'} size="sm" onClick={() => navigate('/admin')}>
@@ -158,6 +163,10 @@ const DashboardHeader = () => {
 
           <Button variant={isActivePath('/management') ? 'default' : 'ghost'} size="sm" onClick={() => navigate('/management')}>
             <Calculator className="w-4 h-4" />
+          </Button>
+
+          <Button variant={isActivePath('/discord-ranking') ? 'default' : 'ghost'} size="sm" onClick={() => navigate('/discord-ranking')}>
+            <Trophy className="w-4 h-4" />
           </Button>
 
           {isAdmin && <Button variant={isActivePath('/admin') ? 'default' : 'ghost'} size="sm" onClick={() => navigate('/admin')}>
