@@ -54,7 +54,6 @@ const ImprovedArbitrageCalculator = () => {
   const [varEntrada, setVarEntrada] = useState<number>(0);
   const [varFech, setVarFech] = useState<number>(0);
   const [varTotal, setVarTotal] = useState<number>(0);
-  const TAXA = 0.001; // 0.1%
 
   // Oportunidade selecionada
   const selectedOpp = useMemo(() => {
@@ -100,7 +99,7 @@ const ImprovedArbitrageCalculator = () => {
     const variacaoEntrada = fE / sE - 1;
     const variacaoFechamento = sF > 0 && fF > 0 ? (sF - fF) / sF : 0;
     const variacaoTotal = variacaoEntrada + variacaoFechamento;
-    const lucroEmUSD = v * variacaoTotal * (1 - TAXA);
+    const lucroEmUSD = v * variacaoTotal;
     const lucroEmBRL = lucroEmUSD * taxaCambioAtual;
     setLucroUSD(lucroEmUSD);
     setLucroBRL(lucroEmBRL);
@@ -418,7 +417,7 @@ const ImprovedArbitrageCalculator = () => {
                 </div>
 
                 <div className="text-xs text-muted-foreground text-center pt-3 border-t border-border">
-                  Taxa de {(TAXA * 100).toFixed(2)}% já descontada • Câmbio BRL/USDT: R$ {taxaCambioAtual.toFixed(2)}
+                  Câmbio BRL/USDT: R$ {taxaCambioAtual.toFixed(2)}
                 </div>
               </div>}
           </CardContent>

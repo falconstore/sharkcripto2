@@ -24,9 +24,9 @@ interface FuturesTicker {
   fundingRate: string;
 }
 
-// Taxas da MEXC (em %)
-const SPOT_TAKER_FEE = 0.10;
-const FUTURES_TAKER_FEE = 0.02;
+// Taxas zeradas - operação sem comissões
+const SPOT_TAKER_FEE = 0;
+const FUTURES_TAKER_FEE = 0;
 
 // Spread máximo válido para registrar cruzamento (evitar dados absurdos)
 const MAX_VALID_SPREAD = 10;
