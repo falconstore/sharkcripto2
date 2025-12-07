@@ -139,13 +139,18 @@ export const useCoinListings = () => {
     }
   };
 
+  // Normalize symbol for comparison (handles BTC_USDT vs BTCUSDT)
+  const normalizeSymbol = (symbol: string): string => 
+    symbol.replace('_', '').toUpperCase();
+
   // Check if a coin is new (listed in last 24h)
   const isNewCoin = useCallback((pairSymbol: string): boolean => {
+    const normalizedInput = normalizeSymbol(pairSymbol);
     const now = new Date();
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     
     return listings.some(
-      l => l.pair_symbol === pairSymbol && 
+      l => normalizeSymbol(l.pair_symbol) === normalizedInput && 
            l.listing_type === 'new' && 
            new Date(l.scheduled_date) >= twentyFourHoursAgo &&
            new Date(l.scheduled_date) <= now
@@ -154,10 +159,11 @@ export const useCoinListings = () => {
 
   // Get delisting info for a coin
   const getDelistingInfo = useCallback((pairSymbol: string): CoinListing | null => {
+    const normalizedInput = normalizeSymbol(pairSymbol);
     const now = new Date();
     
     return listings.find(
-      l => l.pair_symbol === pairSymbol && 
+      l => normalizeSymbol(l.pair_symbol) === normalizedInput && 
            l.listing_type === 'delist' && 
            new Date(l.scheduled_date) > now
     ) || null;
