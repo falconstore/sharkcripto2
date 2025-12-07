@@ -236,16 +236,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // OTIMIZAÇÃO 4: Executar operações de banco em paralelo
+    // Salvar apenas cruzamentos e cooldowns (oportunidades retornam direto no JSON)
     const dbOperations: Promise<void>[] = [];
-
-    // Helper para converter PostgrestFilterBuilder em Promise
-    const upsertOpportunities = async (chunk: any[]) => {
-      const { error } = await supabase
-        .from('arbitrage_opportunities')
-        .upsert(chunk, { onConflict: 'pair_symbol', ignoreDuplicates: false });
-      if (error) console.error('Erro upsert oportunidades:', error.message);
-    };
 
     const insertCrossings = async () => {
       const { error } = await supabase
@@ -262,26 +254,17 @@ Deno.serve(async (req) => {
       if (error) console.error('Erro upsert cooldowns:', error.message);
     };
 
-    // 4a. UPSERT oportunidades em chunks
-    if (opportunities.length > 0) {
-      const chunkSize = 500;
-      for (let i = 0; i < opportunities.length; i += chunkSize) {
-        const chunk = opportunities.slice(i, i + chunkSize);
-        dbOperations.push(upsertOpportunities(chunk));
-      }
-    }
-
-    // 4b. Inserir cruzamentos em batch
+    // Inserir cruzamentos em batch
     if (pendingCrossings.length > 0) {
       dbOperations.push(insertCrossings());
     }
 
-    // 4c. Atualizar cooldowns em batch
+    // Atualizar cooldowns em batch
     if (cooldownsToUpdate.length > 0) {
       dbOperations.push(upsertCooldowns());
     }
 
-    // Aguardar todas as operações de banco
+    // Aguardar operações de banco
     await Promise.all(dbOperations);
 
     const elapsed = Date.now() - startTime;
@@ -291,6 +274,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         message: 'Processado com sucesso',
         status: 'completed',
+        opportunities: opportunities,
         stats: {
           pairs: opportunities.length,
           crossings: pendingCrossings.length,
