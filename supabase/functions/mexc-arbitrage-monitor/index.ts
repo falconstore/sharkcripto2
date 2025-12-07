@@ -247,7 +247,8 @@ Deno.serve(async (req) => {
           spreadNetLong = spreadGrossLong - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
           // DIREÇÃO 2: SHORT SPOT + LONG FUTURES (Reverse Cash and Carry) - SAÍDA
-          spreadGrossShort = ((spotBidPrice - futuresAskPrice) / futuresAskPrice) * 100;
+          // CORRIGIDO: Divide pelo spotBidPrice (igual às calculadoras Shark)
+          spreadGrossShort = ((spotBidPrice - futuresAskPrice) / spotBidPrice) * 100;
           spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
           // Detectar e registrar cruzamento (com cooldown persistente)
