@@ -20,7 +20,6 @@ const ArbitrageCalculator = () => {
   const [varTotal, setVarTotal] = useState<number>(0);
 
   const taxaCambioAtual = 5.70; // Pode ser atualizada dinamicamente
-  const TAXA = 0.001; // 0.1%
 
   const calcular = () => {
     const valor = parseFloat(valorInvestido) || 0;
@@ -44,7 +43,7 @@ const ArbitrageCalculator = () => {
       : 0;
     const variacaoTotal = variacaoEntrada + variacaoFechamento;
 
-    const lucroEmUSD = (valor * variacaoTotal) * (1 - TAXA);
+    const lucroEmUSD = valor * variacaoTotal;
     const lucroEmBRL = lucroEmUSD * taxaCambioAtual;
 
     setLucroUSD(lucroEmUSD);
@@ -214,9 +213,6 @@ const ArbitrageCalculator = () => {
                   </div>
                 </div>
 
-                <div className="text-xs text-muted-foreground text-center pt-2 border-t border-border">
-                  Taxa de {(TAXA * 100).toFixed(2)}% já descontada
-                </div>
               </div>
             )}
           </CardContent>

@@ -61,7 +61,6 @@ const CompactArbitrageCalculator = ({
   // Sound notification ref
   const lastNotifiedVarTotal = useRef<number>(0);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const TAXA = 0.001;
 
   // Get individual threshold
   const profitThresholdPercent = storedCalc?.profitThresholdPercent ?? 0.1;
@@ -136,7 +135,7 @@ const CompactArbitrageCalculator = ({
     const variacaoEntrada = fE / sE - 1;
     const variacaoFechamento = sF > 0 && fF > 0 ? (sF - fF) / sF : 0;
     const variacaoTotal = variacaoEntrada + variacaoFechamento;
-    const lucroEmUSD = v * variacaoTotal * (1 - TAXA);
+    const lucroEmUSD = v * variacaoTotal;
     const lucroEmBRL = lucroEmUSD * taxaCambioAtual;
     setLucroUSD(lucroEmUSD);
     setLucroBRL(lucroEmBRL);
