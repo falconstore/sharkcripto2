@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { X, TrendingUp, TrendingDown, Play, Pause, GripVertical, Wallet, Bell, RotateCcw, ThumbsUp } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Play, Pause, GripVertical, Wallet, Bell, RotateCcw, ThumbsUp, ExternalLink } from 'lucide-react';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useCalculatorStore, CalculatorData } from '@/hooks/useCalculatorStore';
@@ -204,6 +204,25 @@ const CompactArbitrageCalculator = ({
                 <Bell className="w-2.5 h-2.5 mr-0.5" />
                 %
               </Badge>}
+            {selectedPair && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const symbol = selectedPair.replace('_USDT', '').replace('USDT', '');
+                      window.open(`https://www.mexc.com/pt-BR/exchange/${symbol}_USDT`, 'mexc-spot');
+                      window.open(`https://futures.mexc.com/pt-BR/exchange/${symbol}_USDT`, 'mexc-futures');
+                    }}
+                    className="h-6 w-6 text-muted-foreground hover:text-primary"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Abrir MEXC (Spot + Futures)</TooltipContent>
+              </Tooltip>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <Tooltip>
@@ -258,23 +277,22 @@ const CompactArbitrageCalculator = ({
           </div>
         </div>
 
-        {/* Toggle de Tracking + Threshold Individual */}
-        {selectedPair && <div className="space-y-2">
-            <div className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-accent/20 mr-0">
+        {/* Toggle de Tracking + Threshold Individual - Lado a lado */}
+        {selectedPair && <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-accent/20">
               <div className="flex items-center gap-1">
                 {trackingActive ? <Play className="w-3 h-3 text-profit" /> : <Pause className="w-3 h-3 text-muted-foreground" />}
                 <Label htmlFor={`tracking-${id}`} className="text-[10px] cursor-pointer">
-                  Auto tracking
+                  Auto
                 </Label>
               </div>
               <Switch id={`tracking-${id}`} checked={trackingActive} onCheckedChange={setTrackingActive} className="scale-75" />
             </div>
             
             {/* Threshold Individual */}
-            <div className="gap-2 p-2 rounded-md border border-border/50 bg-accent/20 flex items-center justify-start pr-[5px] mr-0">
-              <Bell className="w-3 h-3 text-muted-foreground" />
-              <Label className="text-[10px]">Alerta:</Label>
-              <Input type="number" value={thresholdInput} onChange={e => handleThresholdChange(e.target.value)} step="0.01" min="0" className="h-6 w-16 text-xs font-mono" />
+            <div className="flex items-center gap-1 p-2 rounded-md border border-border/50 bg-accent/20">
+              <Bell className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+              <Input type="number" value={thresholdInput} onChange={e => handleThresholdChange(e.target.value)} step="0.01" min="0" className="h-5 w-12 text-xs font-mono px-1" />
               <span className="text-[10px] text-muted-foreground">%</span>
             </div>
           </div>}
