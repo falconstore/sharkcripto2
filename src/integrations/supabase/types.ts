@@ -286,6 +286,21 @@ export type Database = {
         }
         Relationships: []
       }
+      crossing_cooldowns_entrada: {
+        Row: {
+          last_crossing_at: string
+          pair_symbol: string
+        }
+        Insert: {
+          last_crossing_at?: string
+          pair_symbol: string
+        }
+        Update: {
+          last_crossing_at?: string
+          pair_symbol?: string
+        }
+        Relationships: []
+      }
       discord_channel_activity: {
         Row: {
           activity_date: string | null
@@ -435,6 +450,30 @@ export type Database = {
           id?: string
           pair_symbol?: string
           spread_net_percent_saida?: number
+          timestamp?: string
+        }
+        Relationships: []
+      }
+      pair_crossings_entrada: {
+        Row: {
+          created_at: string | null
+          id: string
+          pair_symbol: string
+          spread_net_percent_entrada: number
+          timestamp: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          pair_symbol: string
+          spread_net_percent_entrada: number
+          timestamp?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          pair_symbol?: string
+          spread_net_percent_entrada?: number
           timestamp?: string
         }
         Relationships: []

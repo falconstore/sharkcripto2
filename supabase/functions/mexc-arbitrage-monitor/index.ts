@@ -107,17 +107,23 @@ Deno.serve(async (req) => {
       }
     };
 
-    // OTIMIZAÇÃO 1: Carregar TODOS cooldowns de uma vez
+    // OTIMIZAÇÃO 1: Carregar TODOS cooldowns de uma vez (saída + entrada)
     const fetchAllCooldowns = async (): Promise<Map<string, Date>> => {
       try {
-        const { data } = await supabase
-          .from('crossing_cooldowns')
-          .select('pair_symbol, last_crossing_at');
+        const [{ data: saidaData }, { data: entradaData }] = await Promise.all([
+          supabase.from('crossing_cooldowns').select('pair_symbol, last_crossing_at'),
+          supabase.from('crossing_cooldowns_entrada').select('pair_symbol, last_crossing_at')
+        ]);
         
         const cooldownMap = new Map<string, Date>();
-        if (data) {
-          for (const row of data) {
+        if (saidaData) {
+          for (const row of saidaData) {
             cooldownMap.set(row.pair_symbol, new Date(row.last_crossing_at));
+          }
+        }
+        if (entradaData) {
+          for (const row of entradaData) {
+            cooldownMap.set(`${row.pair_symbol}_entrada`, new Date(row.last_crossing_at));
           }
         }
         return cooldownMap;
@@ -161,7 +167,9 @@ Deno.serve(async (req) => {
 
     const opportunities: any[] = [];
     const pendingCrossings: { pair_symbol: string; spread_net_percent_saida: number; timestamp: string }[] = [];
+    const pendingCrossingsEntrada: { pair_symbol: string; spread_net_percent_entrada: number; timestamp: string }[] = [];
     const cooldownsToUpdate: { pair_symbol: string; last_crossing_at: string }[] = [];
+    const cooldownsEntradaToUpdate: { pair_symbol: string; last_crossing_at: string }[] = [];
     const now = new Date().toISOString();
 
     // OTIMIZAÇÃO 3: Processar tudo em memória (sem awaits no loop)
@@ -196,7 +204,7 @@ Deno.serve(async (req) => {
         spreadGrossShort = ((spotBidPrice - futuresAskPrice) / spotBidPrice) * 100;
         spreadNetShort = spreadGrossShort - SPOT_TAKER_FEE - FUTURES_TAKER_FEE;
 
-        // OTIMIZAÇÃO: Verificar cooldown em memória (sem query)
+        // CRUZAMENTO DE SAÍDA: Quando spread de saída fica positivo
         if (spreadNetShort >= MIN_VALID_SPREAD && spreadNetShort <= MAX_VALID_SPREAD) {
           if (checkCooldownInMemory(baseSymbol, cooldownMap)) {
             pendingCrossings.push({
@@ -208,8 +216,24 @@ Deno.serve(async (req) => {
               pair_symbol: baseSymbol,
               last_crossing_at: now
             });
-            // Atualizar mapa local para evitar duplicatas no mesmo ciclo
             cooldownMap.set(baseSymbol, new Date());
+          }
+        }
+
+        // CRUZAMENTO DE ENTRADA: Quando spread de entrada fica positivo
+        if (spreadNetLong >= MIN_VALID_SPREAD && spreadNetLong <= MAX_VALID_SPREAD) {
+          const entradaKey = `${baseSymbol}_entrada`;
+          if (checkCooldownInMemory(entradaKey, cooldownMap)) {
+            pendingCrossingsEntrada.push({
+              pair_symbol: baseSymbol,
+              spread_net_percent_entrada: spreadNetLong,
+              timestamp: now
+            });
+            cooldownsEntradaToUpdate.push({
+              pair_symbol: baseSymbol,
+              last_crossing_at: now
+            });
+            cooldownMap.set(entradaKey, new Date());
           }
         }
       }
@@ -236,39 +260,62 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Salvar apenas cruzamentos e cooldowns (oportunidades retornam direto no JSON)
+    // Salvar cruzamentos e cooldowns (oportunidades retornam direto no JSON)
     const dbOperations: Promise<void>[] = [];
 
+    // Cruzamentos de SAÍDA
     const insertCrossings = async () => {
       const { error } = await supabase
         .from('pair_crossings')
         .insert(pendingCrossings);
-      if (error) console.error('Erro insert cruzamentos:', error.message);
-      else console.log(`✅ ${pendingCrossings.length} cruzamentos registrados`);
+      if (error) console.error('Erro insert cruzamentos saída:', error.message);
+      else console.log(`✅ ${pendingCrossings.length} cruzamentos de SAÍDA registrados`);
     };
 
     const upsertCooldowns = async () => {
       const { error } = await supabase
         .from('crossing_cooldowns')
         .upsert(cooldownsToUpdate, { onConflict: 'pair_symbol' });
-      if (error) console.error('Erro upsert cooldowns:', error.message);
+      if (error) console.error('Erro upsert cooldowns saída:', error.message);
     };
 
-    // Inserir cruzamentos em batch
+    // Cruzamentos de ENTRADA
+    const insertCrossingsEntrada = async () => {
+      const { error } = await supabase
+        .from('pair_crossings_entrada')
+        .insert(pendingCrossingsEntrada);
+      if (error) console.error('Erro insert cruzamentos entrada:', error.message);
+      else console.log(`✅ ${pendingCrossingsEntrada.length} cruzamentos de ENTRADA registrados`);
+    };
+
+    const upsertCooldownsEntrada = async () => {
+      const { error } = await supabase
+        .from('crossing_cooldowns_entrada')
+        .upsert(cooldownsEntradaToUpdate, { onConflict: 'pair_symbol' });
+      if (error) console.error('Erro upsert cooldowns entrada:', error.message);
+    };
+
+    // Inserir cruzamentos de saída
     if (pendingCrossings.length > 0) {
       dbOperations.push(insertCrossings());
     }
-
-    // Atualizar cooldowns em batch
     if (cooldownsToUpdate.length > 0) {
       dbOperations.push(upsertCooldowns());
+    }
+
+    // Inserir cruzamentos de entrada
+    if (pendingCrossingsEntrada.length > 0) {
+      dbOperations.push(insertCrossingsEntrada());
+    }
+    if (cooldownsEntradaToUpdate.length > 0) {
+      dbOperations.push(upsertCooldownsEntrada());
     }
 
     // Aguardar operações de banco
     await Promise.all(dbOperations);
 
     const elapsed = Date.now() - startTime;
-    console.log(`✅ Concluído em ${elapsed}ms | ${opportunities.length} pares | ${pendingCrossings.length} cruzamentos`);
+    console.log(`✅ Concluído em ${elapsed}ms | ${opportunities.length} pares | ${pendingCrossings.length} cruzamentos saída | ${pendingCrossingsEntrada.length} cruzamentos entrada`);
 
     return new Response(
       JSON.stringify({ 
@@ -277,7 +324,8 @@ Deno.serve(async (req) => {
         opportunities: opportunities,
         stats: {
           pairs: opportunities.length,
-          crossings: pendingCrossings.length,
+          crossings_saida: pendingCrossings.length,
+          crossings_entrada: pendingCrossingsEntrada.length,
           elapsed_ms: elapsed
         }
       }),
