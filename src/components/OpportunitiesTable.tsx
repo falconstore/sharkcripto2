@@ -31,6 +31,7 @@ import { useCrossings } from '@/hooks/useCrossings';
 import { useCoinListings } from '@/hooks/useCoinListings';
 import { useIsMobile } from '@/hooks/use-mobile';
 import CrossingsHistoryModal from './CrossingsHistoryModal';
+import CoinAnalysisModal from './CoinAnalysisModal';
 import NewCoinBadge from './NewCoinBadge';
 import DelistWarning from './DelistWarning';
 import OpportunityCard from './OpportunityCard';
@@ -72,6 +73,7 @@ const OpportunitiesTable = () => {
     { field: 'spread_net_percent_entrada', order: 'desc' }
   ]);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
   const [selectedPair, setSelectedPair] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -223,6 +225,11 @@ const OpportunitiesTable = () => {
   const handleOpenHistory = (symbol: string) => {
     setSelectedPair(symbol);
     setHistoryModalOpen(true);
+  };
+
+  const handleOpenAnalysis = (symbol: string) => {
+    setSelectedPair(symbol);
+    setAnalysisModalOpen(true);
   };
 
   const getCrossingsForPair = (symbol: string): number => {
@@ -649,7 +656,12 @@ const OpportunitiesTable = () => {
                               {getDelistingInfo(opp.pair_symbol) && (
                                 <DelistWarning scheduledDate={getDelistingInfo(opp.pair_symbol)!.scheduled_date} />
                               )}
-                              <span>{opp.pair_symbol}</span>
+                              <button
+                                onClick={() => handleOpenAnalysis(opp.pair_symbol)}
+                                className="hover:text-primary hover:underline underline-offset-2 transition-colors"
+                              >
+                                {opp.pair_symbol}
+                              </button>
                               {isNewCoin(opp.pair_symbol) && <NewCoinBadge />}
                             </div>
                           </TableCell>
@@ -869,6 +881,12 @@ const OpportunitiesTable = () => {
       <CrossingsHistoryModal
         open={historyModalOpen}
         onOpenChange={setHistoryModalOpen}
+        pairSymbol={selectedPair}
+      />
+
+      <CoinAnalysisModal
+        open={analysisModalOpen}
+        onClose={() => setAnalysisModalOpen(false)}
         pairSymbol={selectedPair}
       />
     </Card>
