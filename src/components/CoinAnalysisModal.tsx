@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, TrendingUp, TrendingDown, BarChart3, ExternalLink } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart3, ExternalLink } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -36,8 +36,8 @@ interface CrossingStats {
 interface ChartDataPoint {
   time: string;
   timestamp: Date;
-  entrada: number | null;
-  saida: number | null;
+  entrada: number;
+  saida: number;
 }
 
 interface CoinAnalysisModalProps {
@@ -71,7 +71,7 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
     return timeAgo;
   }, []);
 
-  const normalizeSymbol = (symbol: string) => symbol.replace('_', '').toUpperCase();
+  const normalizeSymbol = (symbol: string) => symbol.replace('_', '').replace('USDT', '').toUpperCase();
 
   const fetchData = useCallback(async () => {
     if (!pairSymbol) return;
@@ -81,23 +81,38 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
     const normalizedSymbol = normalizeSymbol(pairSymbol);
 
     try {
-      // Buscar cruzamentos de entrada
-      const { data: entradaData } = await supabase
-        .from('pair_crossings_entrada')
-        .select('*')
-        .or(`pair_symbol.eq.${pairSymbol},pair_symbol.eq.${normalizedSymbol}`)
-        .gte('timestamp', timeAgo.toISOString())
-        .order('timestamp', { ascending: true });
+      // Buscar dados em paralelo
+      const [entradaResult, saidaResult, historyResult] = await Promise.all([
+        // Cruzamentos de entrada (para cards)
+        supabase
+          .from('pair_crossings_entrada')
+          .select('*')
+          .or(`pair_symbol.eq.${pairSymbol},pair_symbol.eq.${normalizedSymbol}`)
+          .gte('timestamp', timeAgo.toISOString())
+          .order('timestamp', { ascending: true }),
+        
+        // Cruzamentos de saída (para cards)
+        supabase
+          .from('pair_crossings')
+          .select('*')
+          .or(`pair_symbol.eq.${pairSymbol},pair_symbol.eq.${normalizedSymbol}`)
+          .gte('timestamp', timeAgo.toISOString())
+          .order('timestamp', { ascending: true }),
+        
+        // Histórico de spreads (para gráfico contínuo)
+        supabase
+          .from('spread_history')
+          .select('spread_entrada, spread_saida, timestamp')
+          .or(`pair_symbol.eq.${pairSymbol},pair_symbol.eq.${normalizedSymbol}`)
+          .gte('timestamp', timeAgo.toISOString())
+          .order('timestamp', { ascending: true })
+      ]);
 
-      // Buscar cruzamentos de saída
-      const { data: saidaData } = await supabase
-        .from('pair_crossings')
-        .select('*')
-        .or(`pair_symbol.eq.${pairSymbol},pair_symbol.eq.${normalizedSymbol}`)
-        .gte('timestamp', timeAgo.toISOString())
-        .order('timestamp', { ascending: true });
+      const entradaData = entradaResult.data;
+      const saidaData = saidaResult.data;
+      const historyData = historyResult.data;
 
-      // Calcular estatísticas de entrada
+      // Calcular estatísticas de entrada (dos cruzamentos)
       if (entradaData && entradaData.length > 0) {
         const values = entradaData.map(d => d.spread_net_percent_entrada);
         const maxIdx = values.indexOf(Math.max(...values));
@@ -111,7 +126,7 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
         setEntradaStats({ max: null, min: null, count: 0 });
       }
 
-      // Calcular estatísticas de saída
+      // Calcular estatísticas de saída (dos cruzamentos)
       if (saidaData && saidaData.length > 0) {
         const values = saidaData.map(d => d.spread_net_percent_saida);
         const maxIdx = values.indexOf(Math.max(...values));
@@ -125,31 +140,18 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
         setSaidaStats({ max: null, min: null, count: 0 });
       }
 
-      // Montar dados do gráfico
-      const allPoints: ChartDataPoint[] = [];
-
-      entradaData?.forEach(d => {
-        allPoints.push({
+      // Montar dados do gráfico a partir do histórico contínuo
+      if (historyData && historyData.length > 0) {
+        const chartPoints: ChartDataPoint[] = historyData.map(d => ({
           time: format(new Date(d.timestamp), 'dd/MM HH:mm'),
           timestamp: new Date(d.timestamp),
-          entrada: d.spread_net_percent_entrada,
-          saida: null,
-        });
-      });
-
-      saidaData?.forEach(d => {
-        allPoints.push({
-          time: format(new Date(d.timestamp), 'dd/MM HH:mm'),
-          timestamp: new Date(d.timestamp),
-          entrada: null,
-          saida: d.spread_net_percent_saida,
-        });
-      });
-
-      // Ordenar por timestamp
-      allPoints.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-      setChartData(allPoints);
+          entrada: Number(d.spread_entrada),
+          saida: Number(d.spread_saida),
+        }));
+        setChartData(chartPoints);
+      } else {
+        setChartData([]);
+      }
     } catch (error) {
       console.error('Erro ao buscar dados de análise:', error);
     } finally {
@@ -305,16 +307,16 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
               </div>
             </div>
 
-            {/* Gráfico */}
+            {/* Gráfico de linhas contínuas */}
             <Card className="bg-accent/20">
               <CardContent className="p-4">
                 <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4" />
-                  Gráfico de Cruzamentos
+                  Gráfico de Spreads
                 </h3>
                 {chartData.length === 0 ? (
                   <div className="h-64 flex items-center justify-center text-muted-foreground">
-                    Nenhum cruzamento registrado no período
+                    Nenhum histórico de spread no período
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
@@ -328,6 +330,7 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
                       <YAxis 
                         tick={{ fontSize: 10 }}
                         tickFormatter={(value) => `${value.toFixed(2)}%`}
+                        domain={['auto', 'auto']}
                       />
                       <Tooltip 
                         contentStyle={{ 
@@ -335,27 +338,32 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
                         }}
-                        formatter={(value: number) => [`${value.toFixed(4)}%`, '']}
+                        formatter={(value: number, name: string) => [
+                          `${value.toFixed(4)}%`, 
+                          name === 'entrada' ? 'Entrada (Long)' : 'Saída (Short)'
+                        ]}
                       />
-                      <Legend />
+                      <Legend 
+                        formatter={(value) => value === 'entrada' ? 'Entrada (Long)' : 'Saída (Short)'}
+                      />
                       <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" />
                       <Line
                         type="monotone"
                         dataKey="entrada"
                         stroke="hsl(var(--profit))"
-                        name="Entrada (Long)"
+                        name="entrada"
                         strokeWidth={2}
-                        dot={{ fill: 'hsl(var(--profit))', r: 4 }}
-                        connectNulls={false}
+                        dot={false}
+                        connectNulls={true}
                       />
                       <Line
                         type="monotone"
                         dataKey="saida"
                         stroke="hsl(var(--negative))"
-                        name="Saída (Short)"
+                        name="saida"
                         strokeWidth={2}
-                        dot={{ fill: 'hsl(var(--negative))', r: 4 }}
-                        connectNulls={false}
+                        dot={false}
+                        connectNulls={true}
                       />
                     </LineChart>
                   </ResponsiveContainer>

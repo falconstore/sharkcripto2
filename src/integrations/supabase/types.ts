@@ -538,6 +538,33 @@ export type Database = {
         }
         Relationships: []
       }
+      spread_history: {
+        Row: {
+          created_at: string | null
+          id: string
+          pair_symbol: string
+          spread_entrada: number
+          spread_saida: number
+          timestamp: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          pair_symbol: string
+          spread_entrada: number
+          spread_saida: number
+          timestamp?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          pair_symbol?: string
+          spread_entrada?: number
+          spread_saida?: number
+          timestamp?: string
+        }
+        Relationships: []
+      }
       user_alerts: {
         Row: {
           created_at: string | null
