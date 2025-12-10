@@ -66,6 +66,7 @@
     --gold-foreground: 0 0% 100%;
     --profit: 142 76% 36%;
     --profit-foreground: 0 0% 100%;
+    --negative: 0 84% 60%;
   }
 
   .dark {
