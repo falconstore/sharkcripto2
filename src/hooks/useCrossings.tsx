@@ -13,7 +13,10 @@ export interface CrossingsCount {
   [pair_symbol: string]: number;
 }
 
-type Period = '15m' | '30m' | '1h' | '2h';
+type Period = '15m' | '30m' | '1h' | '3h';
+
+// Tamanho de página para paginação
+const PAGE_SIZE = 2000;
 
 export const useCrossings = () => {
   const [crossingsCount, setCrossingsCount] = useState<CrossingsCount>({});
@@ -25,27 +28,43 @@ export const useCrossings = () => {
     if (period === '15m') timeAgo.setMinutes(timeAgo.getMinutes() - 15);
     else if (period === '30m') timeAgo.setMinutes(timeAgo.getMinutes() - 30);
     else if (period === '1h') timeAgo.setHours(timeAgo.getHours() - 1);
-    else if (period === '2h') timeAgo.setHours(timeAgo.getHours() - 2);
+    else if (period === '3h') timeAgo.setHours(timeAgo.getHours() - 3);
     return timeAgo;
   }, []);
 
-  // Buscar contagem de cruzamentos para todas as moedas
+  // Buscar contagem de cruzamentos com PAGINAÇÃO para não perder dados
   const fetchCrossingsCount = useCallback(async (period: Period = '1h') => {
     try {
       setLoading(true);
       
       const timeAgo = getTimeAgo(period);
       
-      const { data, error } = await supabase
-        .from('pair_crossings')
-        .select('pair_symbol')
-        .gte('timestamp', timeAgo.toISOString());
-
-      if (error) throw error;
+      let allData: { pair_symbol: string }[] = [];
+      let page = 0;
+      let hasMore = true;
+      
+      // Buscar em páginas de 2000 até não ter mais dados
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('pair_crossings')
+          .select('pair_symbol')
+          .gte('timestamp', timeAgo.toISOString())
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          hasMore = data.length === PAGE_SIZE;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
 
       // Contar cruzamentos por moeda
       const counts: CrossingsCount = {};
-      data?.forEach((crossing) => {
+      allData.forEach((crossing) => {
         counts[crossing.pair_symbol] = (counts[crossing.pair_symbol] || 0) + 1;
       });
 
