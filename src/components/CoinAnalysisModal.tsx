@@ -260,7 +260,7 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-profit flex items-center gap-2">
                   <TrendingUp className="w-4 h-4" />
-                  Lucro de Entrada (Long)
+                  Lucro de Entrada
                   <Badge variant="secondary" className="text-xs">{entradaStats.count} cruzamentos</Badge>
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
@@ -285,7 +285,7 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-negative flex items-center gap-2">
                   <TrendingDown className="w-4 h-4" />
-                  Lucro de Saída (Short)
+                  Lucro de Saída
                   <Badge variant="secondary" className="text-xs">{saidaStats.count} cruzamentos</Badge>
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
@@ -340,11 +340,11 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
                         }}
                         formatter={(value: number, name: string) => [
                           `${value.toFixed(4)}%`, 
-                          name === 'entrada' ? 'Entrada (Long)' : 'Saída (Short)'
+                          name === 'entrada' ? 'Entrada' : 'Saída'
                         ]}
                       />
                       <Legend 
-                        formatter={(value) => value === 'entrada' ? 'Entrada (Long)' : 'Saída (Short)'}
+                        formatter={(value) => value === 'entrada' ? 'Entrada' : 'Saída'}
                       />
                       <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" />
                       <Line
