@@ -24,6 +24,52 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+
+// Cores vibrantes para o gráfico
+const CHART_COLORS = {
+  entrada: '#22c55e', // green-500
+  saida: '#ef4444',   // red-500
+};
+
+// Tooltip customizado com diferença entre entrada e saída
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length >= 2) {
+    const entrada = payload.find((p: any) => p.dataKey === 'entrada')?.value ?? 0;
+    const saida = payload.find((p: any) => p.dataKey === 'saida')?.value ?? 0;
+    const diferenca = entrada - saida;
+    
+    return (
+      <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
+        <p className="text-xs text-muted-foreground mb-2">{label}</p>
+        <div className="space-y-1">
+          <p className="text-sm flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: CHART_COLORS.entrada }} />
+            <span>Entrada:</span>
+            <span className="font-mono font-medium">{entrada.toFixed(4)}%</span>
+          </p>
+          <p className="text-sm flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: CHART_COLORS.saida }} />
+            <span>Saída:</span>
+            <span className="font-mono font-medium">{saida.toFixed(4)}%</span>
+          </p>
+          <div className="border-t border-border pt-2 mt-2">
+            <p className="text-sm flex items-center justify-between">
+              <span className="font-medium">Lucro Potencial:</span>
+              <span className={cn(
+                "font-mono font-bold",
+                diferenca > 0 ? "text-[#22c55e]" : "text-[#ef4444]"
+              )}>
+                {diferenca > 0 ? '+' : ''}{diferenca.toFixed(4)}%
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 type Period = '30m' | '3h' | '12h' | '1d' | '3d';
 
@@ -332,25 +378,29 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
                         tickFormatter={(value) => `${value.toFixed(2)}%`}
                         domain={['auto', 'auto']}
                       />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--card))', 
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                        }}
-                        formatter={(value: number, name: string) => [
-                          `${value.toFixed(4)}%`, 
-                          name === 'entrada' ? 'Entrada' : 'Saída'
-                        ]}
-                      />
+                      <Tooltip content={<CustomTooltip />} />
                       <Legend 
-                        formatter={(value) => value === 'entrada' ? 'Entrada' : 'Saída'}
+                        formatter={(value) => (
+                          <span className="flex items-center gap-1.5 text-sm">
+                            {value === 'entrada' ? (
+                              <>
+                                <TrendingUp className="w-3.5 h-3.5" style={{ color: CHART_COLORS.entrada }} />
+                                <span>Entrada</span>
+                              </>
+                            ) : (
+                              <>
+                                <TrendingDown className="w-3.5 h-3.5" style={{ color: CHART_COLORS.saida }} />
+                                <span>Saída</span>
+                              </>
+                            )}
+                          </span>
+                        )}
                       />
                       <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" />
                       <Line
                         type="monotone"
                         dataKey="entrada"
-                        stroke="hsl(var(--profit))"
+                        stroke={CHART_COLORS.entrada}
                         name="entrada"
                         strokeWidth={2}
                         dot={false}
@@ -359,7 +409,7 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
                       <Line
                         type="monotone"
                         dataKey="saida"
-                        stroke="hsl(var(--negative))"
+                        stroke={CHART_COLORS.saida}
                         name="saida"
                         strokeWidth={2}
                         dot={false}
