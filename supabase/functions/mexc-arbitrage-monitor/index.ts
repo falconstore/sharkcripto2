@@ -322,17 +322,39 @@ Deno.serve(async (req) => {
       dbOperations.push(upsertCooldownsEntrada());
     }
 
-    // Inserir histórico de spreads (em batches para não sobrecarregar)
+    // Função para dividir array em chunks
+    const chunkArray = <T,>(array: T[], size: number): T[][] => {
+      const chunks: T[][] = [];
+      for (let i = 0; i < array.length; i += size) {
+        chunks.push(array.slice(i, i + size));
+      }
+      return chunks;
+    };
+
+    // Inserir histórico de spreads em CHUNKS de 500 (salva TODOS os pares)
+    const CHUNK_SIZE = 500;
     const insertSpreadHistory = async () => {
-      // Limitar a 100 pares por execução para não sobrecarregar
-      const batchToSave = spreadHistoryToSave.slice(0, 100);
-      if (batchToSave.length === 0) return;
+      if (spreadHistoryToSave.length === 0) return;
       
-      const { error } = await supabase
-        .from('spread_history')
-        .insert(batchToSave);
-      if (error) console.error('Erro insert spread_history:', error.message);
-      else console.log(`✅ ${batchToSave.length} registros de histórico de spread salvos`);
+      const chunks = chunkArray(spreadHistoryToSave, CHUNK_SIZE);
+      console.log(`📦 Salvando ${spreadHistoryToSave.length} registros em ${chunks.length} chunks de ${CHUNK_SIZE}`);
+      
+      // Inserir todos os chunks em paralelo
+      const results = await Promise.all(
+        chunks.map(async (chunk, index) => {
+          const { error } = await supabase
+            .from('spread_history')
+            .insert(chunk);
+          if (error) {
+            console.error(`❌ Chunk ${index + 1}: ${error.message}`);
+            return 0;
+          }
+          return chunk.length;
+        })
+      );
+      
+      const totalSaved = results.reduce((a, b) => a + b, 0);
+      console.log(`✅ ${totalSaved} registros de histórico de spread salvos`);
     };
 
     dbOperations.push(insertSpreadHistory());
@@ -341,7 +363,7 @@ Deno.serve(async (req) => {
     await Promise.all(dbOperations);
 
     const elapsed = Date.now() - startTime;
-    console.log(`✅ Concluído em ${elapsed}ms | ${opportunities.length} pares | ${pendingCrossings.length} cruzamentos saída | ${pendingCrossingsEntrada.length} cruzamentos entrada | ${Math.min(spreadHistoryToSave.length, 100)} histórico`);
+    console.log(`✅ Concluído em ${elapsed}ms | ${opportunities.length} pares | ${pendingCrossings.length} cruzamentos saída | ${pendingCrossingsEntrada.length} cruzamentos entrada | ${spreadHistoryToSave.length} histórico`);
 
     return new Response(
       JSON.stringify({ 
@@ -352,7 +374,7 @@ Deno.serve(async (req) => {
           pairs: opportunities.length,
           crossings_saida: pendingCrossings.length,
           crossings_entrada: pendingCrossingsEntrada.length,
-          spread_history_saved: Math.min(spreadHistoryToSave.length, 100),
+          spread_history_saved: spreadHistoryToSave.length,
           elapsed_ms: elapsed
         }
       }),

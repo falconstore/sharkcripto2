@@ -16,13 +16,13 @@ interface CrossingsHistoryModalProps {
   pairSymbol: string;
 }
 
-type Period = '15m' | '30m' | '1h' | '2h';
+type Period = '15m' | '30m' | '1h' | '3h';
 
 const PERIOD_LABELS: Record<Period, string> = {
   '15m': '15 minutos',
   '30m': '30 minutos',
   '1h': '1 hora',
-  '2h': '2 horas',
+  '3h': '3 horas',
 };
 
 const CrossingsHistoryModal = ({ open, onOpenChange, pairSymbol }: CrossingsHistoryModalProps) => {

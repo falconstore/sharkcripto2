@@ -71,7 +71,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-type Period = '30m' | '3h' | '12h' | '1d' | '3d';
+type Period = '15m' | '30m' | '1h' | '3h';
 
 interface CrossingStats {
   max: { value: number; timestamp: string } | null;
@@ -93,15 +93,14 @@ interface CoinAnalysisModalProps {
 }
 
 const PERIODS: { value: Period; label: string }[] = [
-  { value: '30m', label: '30m' },
-  { value: '3h', label: '3h' },
-  { value: '12h', label: '12h' },
-  { value: '1d', label: '1d' },
-  { value: '3d', label: '3d' },
+  { value: '15m', label: '15M' },
+  { value: '30m', label: '30M' },
+  { value: '1h', label: '1H' },
+  { value: '3h', label: '3H' },
 ];
 
 const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps) => {
-  const [period, setPeriod] = useState<Period>('1d');
+  const [period, setPeriod] = useState<Period>('1h');
   const [loading, setLoading] = useState(true);
   const [entradaStats, setEntradaStats] = useState<CrossingStats>({ max: null, min: null, count: 0 });
   const [saidaStats, setSaidaStats] = useState<CrossingStats>({ max: null, min: null, count: 0 });
@@ -109,11 +108,10 @@ const CoinAnalysisModal = ({ open, onClose, pairSymbol }: CoinAnalysisModalProps
 
   const getTimeAgo = useCallback((p: Period): Date => {
     const timeAgo = new Date();
-    if (p === '30m') timeAgo.setMinutes(timeAgo.getMinutes() - 30);
+    if (p === '15m') timeAgo.setMinutes(timeAgo.getMinutes() - 15);
+    else if (p === '30m') timeAgo.setMinutes(timeAgo.getMinutes() - 30);
+    else if (p === '1h') timeAgo.setHours(timeAgo.getHours() - 1);
     else if (p === '3h') timeAgo.setHours(timeAgo.getHours() - 3);
-    else if (p === '12h') timeAgo.setHours(timeAgo.getHours() - 12);
-    else if (p === '1d') timeAgo.setDate(timeAgo.getDate() - 1);
-    else if (p === '3d') timeAgo.setDate(timeAgo.getDate() - 3);
     return timeAgo;
   }, []);
 

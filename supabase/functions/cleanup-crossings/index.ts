@@ -84,9 +84,9 @@ Deno.serve(async (req) => {
     const deletedCooldownsCount = deletedCooldowns?.length || 0;
     console.log(`✅ Deletados ${deletedCooldownsCount} cooldowns antigos`);
 
-    // 4. Limpar spread_history antigo (mais de 3 dias)
+    // 4. Limpar spread_history antigo (mais de 3 HORAS - períodos máximos do gráfico)
     const spreadHistoryCutoff = new Date();
-    spreadHistoryCutoff.setDate(spreadHistoryCutoff.getDate() - 3);
+    spreadHistoryCutoff.setHours(spreadHistoryCutoff.getHours() - 3);
 
     const { data: deletedSpreadHistory, error: deleteSpreadHistoryError } = await supabase
       .from('spread_history')
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
     }
 
     const deletedSpreadHistoryCount = deletedSpreadHistory?.length || 0;
-    console.log(`✅ Deletados ${deletedSpreadHistoryCount} registros de spread_history antigos`);
+    console.log(`✅ Deletados ${deletedSpreadHistoryCount} registros de spread_history antigos (> 3h)`);
 
     // 5. Contar registros restantes
     const { count: remainingCount } = await supabase
