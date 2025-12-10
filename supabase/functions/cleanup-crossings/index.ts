@@ -84,17 +84,35 @@ Deno.serve(async (req) => {
     const deletedCooldownsCount = deletedCooldowns?.length || 0;
     console.log(`✅ Deletados ${deletedCooldownsCount} cooldowns antigos`);
 
-    // 4. Contar registros restantes
+    // 4. Limpar spread_history antigo (mais de 3 dias)
+    const spreadHistoryCutoff = new Date();
+    spreadHistoryCutoff.setDate(spreadHistoryCutoff.getDate() - 3);
+
+    const { data: deletedSpreadHistory, error: deleteSpreadHistoryError } = await supabase
+      .from('spread_history')
+      .delete()
+      .lt('timestamp', spreadHistoryCutoff.toISOString())
+      .select('id');
+
+    if (deleteSpreadHistoryError) {
+      console.error('Erro ao deletar spread_history antigo:', deleteSpreadHistoryError);
+    }
+
+    const deletedSpreadHistoryCount = deletedSpreadHistory?.length || 0;
+    console.log(`✅ Deletados ${deletedSpreadHistoryCount} registros de spread_history antigos`);
+
+    // 5. Contar registros restantes
     const { count: remainingCount } = await supabase
       .from('pair_crossings')
       .select('*', { count: 'exact', head: true });
 
-    const totalDeleted = deletedOldCount + deletedInvalidCount;
+    const totalDeleted = deletedOldCount + deletedInvalidCount + deletedSpreadHistoryCount;
 
     console.log(`📊 Resumo:`);
     console.log(`   - Cruzamentos antigos removidos: ${deletedOldCount}`);
     console.log(`   - Cruzamentos inválidos removidos: ${deletedInvalidCount}`);
     console.log(`   - Cooldowns antigos removidos: ${deletedCooldownsCount}`);
+    console.log(`   - Spread history antigo removido: ${deletedSpreadHistoryCount}`);
     console.log(`   - Total removido: ${totalDeleted}`);
     console.log(`   - Registros restantes: ${remainingCount || 0}`);
 
@@ -104,6 +122,7 @@ Deno.serve(async (req) => {
         deleted_old: deletedOldCount,
         deleted_invalid: deletedInvalidCount,
         deleted_cooldowns: deletedCooldownsCount,
+        deleted_spread_history: deletedSpreadHistoryCount,
         total_deleted: totalDeleted,
         remaining_records: remainingCount || 0,
         message: `Limpeza concluída: ${totalDeleted} registros removidos, ${remainingCount || 0} restantes`

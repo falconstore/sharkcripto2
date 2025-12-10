@@ -170,6 +170,7 @@ Deno.serve(async (req) => {
     const pendingCrossingsEntrada: { pair_symbol: string; spread_net_percent_entrada: number; timestamp: string }[] = [];
     const cooldownsToUpdate: { pair_symbol: string; last_crossing_at: string }[] = [];
     const cooldownsEntradaToUpdate: { pair_symbol: string; last_crossing_at: string }[] = [];
+    const spreadHistoryToSave: { pair_symbol: string; spread_entrada: number; spread_saida: number; timestamp: string }[] = [];
     const now = new Date().toISOString();
 
     // OTIMIZAÇÃO 3: Processar tudo em memória (sem awaits no loop)
@@ -239,6 +240,16 @@ Deno.serve(async (req) => {
       }
 
       const fundingRate = futuresTicker ? parseFloat(futuresTicker.fundingRate) || 0 : 0;
+
+      // Salvar histórico de spread para TODOS os pares com preços válidos
+      if (hasValidSpotPrices && hasValidFuturesPrices) {
+        spreadHistoryToSave.push({
+          pair_symbol: baseSymbol,
+          spread_entrada: spreadNetLong,
+          spread_saida: spreadNetShort,
+          timestamp: now
+        });
+      }
 
       opportunities.push({
         pair_symbol: baseSymbol,
@@ -311,11 +322,26 @@ Deno.serve(async (req) => {
       dbOperations.push(upsertCooldownsEntrada());
     }
 
+    // Inserir histórico de spreads (em batches para não sobrecarregar)
+    const insertSpreadHistory = async () => {
+      // Limitar a 100 pares por execução para não sobrecarregar
+      const batchToSave = spreadHistoryToSave.slice(0, 100);
+      if (batchToSave.length === 0) return;
+      
+      const { error } = await supabase
+        .from('spread_history')
+        .insert(batchToSave);
+      if (error) console.error('Erro insert spread_history:', error.message);
+      else console.log(`✅ ${batchToSave.length} registros de histórico de spread salvos`);
+    };
+
+    dbOperations.push(insertSpreadHistory());
+
     // Aguardar operações de banco
     await Promise.all(dbOperations);
 
     const elapsed = Date.now() - startTime;
-    console.log(`✅ Concluído em ${elapsed}ms | ${opportunities.length} pares | ${pendingCrossings.length} cruzamentos saída | ${pendingCrossingsEntrada.length} cruzamentos entrada`);
+    console.log(`✅ Concluído em ${elapsed}ms | ${opportunities.length} pares | ${pendingCrossings.length} cruzamentos saída | ${pendingCrossingsEntrada.length} cruzamentos entrada | ${Math.min(spreadHistoryToSave.length, 100)} histórico`);
 
     return new Response(
       JSON.stringify({ 
@@ -326,6 +352,7 @@ Deno.serve(async (req) => {
           pairs: opportunities.length,
           crossings_saida: pendingCrossings.length,
           crossings_entrada: pendingCrossingsEntrada.length,
+          spread_history_saved: Math.min(spreadHistoryToSave.length, 100),
           elapsed_ms: elapsed
         }
       }),
