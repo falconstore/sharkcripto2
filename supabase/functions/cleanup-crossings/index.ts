@@ -12,6 +12,18 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Validar API key para proteção contra acesso não autorizado
+    const monitorKey = req.headers.get('x-monitor-key');
+    const expectedKey = Deno.env.get('MONITOR_API_KEY');
+
+    if (!monitorKey || monitorKey !== expectedKey) {
+      console.error('❌ Invalid or missing monitor API key');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('=== Cleanup Crossings Starting ===');
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
