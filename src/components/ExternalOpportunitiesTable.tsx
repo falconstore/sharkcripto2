@@ -28,13 +28,13 @@ import { FloatingArbitrageCalculator } from './FloatingArbitrageCalculator';
 type SortField = 'symbol' | 'entrySpread' | 'exitSpread' | 'buyVol24' | 'sellVol24';
 type SortOrder = 'asc' | 'desc';
 
-// Função para extrair totalCrossovers do histCruzamento JSON
+// Função para extrair cruzamentos (inverted_count) do histCruzamento JSON
 const getCrossingsCount = (histCruzamento: string | null | undefined): number | null => {
   if (!histCruzamento) return null;
   try {
     const parsed = JSON.parse(histCruzamento);
-    const analysis = parsed.crossoverAnalysis || parsed;
-    return analysis.totalCrossovers ?? null;
+    // O sistema externo chama "inversões" o que nós chamamos de "cruzamentos"
+    return parsed.inverted_count ?? parsed.totalCrossovers ?? null;
   } catch {
     return null;
   }
@@ -93,11 +93,11 @@ const HistoricalStatsTooltip = ({ histCruzamento }: { histCruzamento: string | n
       
       {/* Contadores */}
       <div className="border-t border-border pt-2 mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-        <span className="text-muted-foreground">Cruzamentos:</span>
-        <span className="font-mono font-semibold">{stats.totalCrossovers ?? '-'}</span>
+        <span className="text-muted-foreground">Cruzamentos (Inv.):</span>
+        <span className="text-primary font-mono font-semibold">{stats.inverted_count ?? 0}</span>
         
-        <span className="text-muted-foreground">Inversões:</span>
-        <span className="text-red-400 font-mono">{stats.inverted_count ?? 0}</span>
+        <span className="text-muted-foreground">Total Crossovers:</span>
+        <span className="text-muted-foreground font-mono">{stats.totalCrossovers ?? '-'}</span>
         
         <span className="text-muted-foreground">Entradas:</span>
         <span className="font-mono">{stats.entry?.length ?? 0}</span>
