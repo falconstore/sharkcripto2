@@ -92,26 +92,39 @@ export const useExternalArbitrage = () => {
       const parsed = JSON.parse(data);
       
       if (parsed.data && Array.isArray(parsed.data)) {
-        const opportunities: ExternalOpportunity[] = parsed.data.map((item: any) => ({
-          id: item.id,
-          code: item.code,
-          symbol: item.symbol,
-          buyFrom: item.buyFrom,
-          buyType: item.buyType,
-          buyPrice: parseFloat(item.buyPrice) || 0,
-          buyVol24: item.buyVol24 || '0',
-          buyFundingRate: item.buyFundingRate,
-          sellTo: item.sellTo,
-          sellType: item.sellType,
-          sellPrice: parseFloat(item.sellPrice) || 0,
-          sellVol24: item.sellVol24 || '0',
-          sellFundingRate: item.sellFundingRate,
-          entrySpread: parseFloat(item.entrySpread) || 0,
-          exitSpread: parseFloat(item.exitSpread) || 0,
-          timestamp: item.timestamp,
-          current: item.current,
-          histCruzamento: item.histCruzamento,
-        }));
+        const opportunities: ExternalOpportunity[] = parsed.data.map((item: any) => {
+          const buyPrice = parseFloat(item.buyPrice) || 0;
+          const sellPrice = parseFloat(item.sellPrice) || 0;
+          let exitSpread = parseFloat(item.exitSpread) || 0;
+          
+          // Para Futuros-Futuros, recalcular exitSpread corretamente
+          // Exit: você fecha comprando onde vendeu (sellPrice como ask) e vendendo onde comprou (buyPrice como bid)
+          // Fórmula: ((sellAsk / buyBid) - 1) * -100 = ((sellPrice / buyPrice) - 1) * -100
+          if (item.buyType === 'FUTURES' && item.sellType === 'FUTURES' && buyPrice > 0) {
+            exitSpread = ((sellPrice / buyPrice) - 1) * -100;
+          }
+          
+          return {
+            id: item.id,
+            code: item.code,
+            symbol: item.symbol,
+            buyFrom: item.buyFrom,
+            buyType: item.buyType,
+            buyPrice,
+            buyVol24: item.buyVol24 || '0',
+            buyFundingRate: item.buyFundingRate,
+            sellTo: item.sellTo,
+            sellType: item.sellType,
+            sellPrice,
+            sellVol24: item.sellVol24 || '0',
+            sellFundingRate: item.sellFundingRate,
+            entrySpread: parseFloat(item.entrySpread) || 0,
+            exitSpread,
+            timestamp: item.timestamp,
+            current: item.current,
+            histCruzamento: item.histCruzamento,
+          };
+        });
         
         setOpportunities(opportunities, parsed.count || opportunities.length);
       }
