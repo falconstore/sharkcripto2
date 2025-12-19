@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -18,13 +18,16 @@ import {
   RotateCcw,
   LineChart as LineChartIcon,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Tv
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { cn } from '@/lib/utils';
 import { useExternalSpreadHistory } from '@/hooks/useExternalSpreadHistory';
 import { useExternalMonitor } from '@/hooks/useExternalMonitor';
 
+// Lazy load TradingView widget for performance
+const TradingViewWidget = lazy(() => import('@/components/TradingViewWidget'));
 interface CrossoverEvent {
   timestamp: string;
   exchange1Price: number;
@@ -717,11 +720,15 @@ export const ExternalAnalysisModal = ({
               />
             )}
 
-            <Tabs defaultValue="grafico" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 mb-4">
+            <Tabs defaultValue="tradingview" className="w-full">
+              <TabsList className="grid w-full grid-cols-4 mb-4">
+                <TabsTrigger value="tradingview" className="text-xs">
+                  <Tv className="w-3 h-3 mr-1" />
+                  TradingView
+                </TabsTrigger>
                 <TabsTrigger value="grafico" className="text-xs">
                   <LineChartIcon className="w-3 h-3 mr-1" />
-                  Gráfico
+                  Spread
                 </TabsTrigger>
                 <TabsTrigger value="aberturas" className="text-xs">
                   <TrendingUp className="w-3 h-3 mr-1" />
@@ -732,6 +739,59 @@ export const ExternalAnalysisModal = ({
                   Fechamentos ({fechamentosData.length})
                 </TabsTrigger>
               </TabsList>
+
+              {/* Tab TradingView - Side by Side Spot/Futures */}
+              <TabsContent value="tradingview" className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 h-80">
+                  {/* Spot Chart */}
+                  <div className="border border-border rounded-lg overflow-hidden flex flex-col">
+                    <div className="text-xs p-2 bg-cyan-500/20 text-cyan-400 text-center font-medium flex items-center justify-center gap-1">
+                      <TrendingUp className="w-3 h-3" />
+                      SPOT - {buyFrom.toUpperCase()}
+                    </div>
+                    <div className="flex-1">
+                      <Suspense fallback={
+                        <div className="h-full flex items-center justify-center bg-accent/20">
+                          <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+                        </div>
+                      }>
+                        <TradingViewWidget 
+                          symbol={symbol}
+                          exchange={buyFrom}
+                          market="spot"
+                          height={280}
+                        />
+                      </Suspense>
+                    </div>
+                  </div>
+                  
+                  {/* Futures Chart */}
+                  <div className="border border-border rounded-lg overflow-hidden flex flex-col">
+                    <div className="text-xs p-2 bg-violet-500/20 text-violet-400 text-center font-medium flex items-center justify-center gap-1">
+                      <TrendingDown className="w-3 h-3" />
+                      FUTURES - {sellTo.toUpperCase()}
+                    </div>
+                    <div className="flex-1">
+                      <Suspense fallback={
+                        <div className="h-full flex items-center justify-center bg-accent/20">
+                          <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+                        </div>
+                      }>
+                        <TradingViewWidget 
+                          symbol={symbol}
+                          exchange={sellTo}
+                          market="future"
+                          height={280}
+                        />
+                      </Suspense>
+                    </div>
+                  </div>
+                </div>
+                
+                <p className="text-[10px] text-muted-foreground text-center">
+                  Gráficos TradingView em tempo real • Intervalo: 1 minuto
+                </p>
+              </TabsContent>
 
               {/* Tab Gráfico */}
               <TabsContent value="grafico" className="space-y-4">
