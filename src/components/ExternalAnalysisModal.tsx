@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -16,10 +17,13 @@ import {
   ArrowRightLeft,
   RotateCcw,
   LineChart as LineChartIcon,
-  ListOrdered
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { cn } from '@/lib/utils';
+import { useExternalSpreadHistory } from '@/hooks/useExternalSpreadHistory';
+import { useExternalMonitor } from '@/hooks/useExternalMonitor';
 
 interface CrossoverEvent {
   timestamp: string;
@@ -238,12 +242,16 @@ const SpreadStatsCards = ({
   maxSpread, 
   minSpread, 
   avgSpread,
-  label
+  label,
+  count,
+  isLoading = false
 }: { 
   maxSpread: number; 
   minSpread: number; 
   avgSpread: number;
   label: string;
+  count?: number;
+  isLoading?: boolean;
 }) => (
   <div className="grid grid-cols-3 gap-2">
     <Card className="bg-profit/10 border-profit/30">
@@ -251,9 +259,13 @@ const SpreadStatsCards = ({
         <p className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">
           <TrendingUp className="w-3 h-3" /> Máx {label}
         </p>
-        <p className="text-lg font-bold text-profit">
-          {maxSpread.toFixed(3)}%
-        </p>
+        {isLoading ? (
+          <Skeleton className="h-6 w-16 mt-1" />
+        ) : (
+          <p className="text-lg font-bold text-profit">
+            {maxSpread.toFixed(3)}%
+          </p>
+        )}
       </CardContent>
     </Card>
     <Card className="bg-negative/10 border-negative/30">
@@ -261,22 +273,30 @@ const SpreadStatsCards = ({
         <p className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">
           <TrendingDown className="w-3 h-3" /> Mín {label}
         </p>
-        <p className="text-lg font-bold text-negative">
-          {minSpread.toFixed(3)}%
-        </p>
+        {isLoading ? (
+          <Skeleton className="h-6 w-16 mt-1" />
+        ) : (
+          <p className="text-lg font-bold text-negative">
+            {minSpread.toFixed(3)}%
+          </p>
+        )}
       </CardContent>
     </Card>
     <Card className="bg-primary/10 border-primary/30">
       <CardContent className="p-3">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
-          Média {label}
+          Média {label} {count !== undefined && `(${count})`}
         </p>
-        <p className={cn(
-          "text-lg font-bold",
-          avgSpread >= 0 ? 'text-profit' : 'text-negative'
-        )}>
-          {avgSpread.toFixed(3)}%
-        </p>
+        {isLoading ? (
+          <Skeleton className="h-6 w-16 mt-1" />
+        ) : (
+          <p className={cn(
+            "text-lg font-bold",
+            avgSpread >= 0 ? 'text-profit' : 'text-negative'
+          )}>
+            {avgSpread.toFixed(3)}%
+          </p>
+        )}
       </CardContent>
     </Card>
   </div>
@@ -285,7 +305,8 @@ const SpreadStatsCards = ({
 // Componente de tabela de histórico
 const HistoryTable = ({ 
   data, 
-  type 
+  type,
+  isLoading = false
 }: { 
   data: Array<{
     time: string;
@@ -294,6 +315,7 @@ const HistoryTable = ({
     spread: number;
   }>;
   type: 'entrada' | 'saida';
+  isLoading?: boolean;
 }) => (
   <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
     <table className="w-full text-sm">
@@ -310,7 +332,16 @@ const HistoryTable = ({
         </tr>
       </thead>
       <tbody>
-        {data.length === 0 ? (
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, idx) => (
+            <tr key={idx} className="border-t border-border">
+              <td className="p-2"><Skeleton className="h-4 w-16" /></td>
+              <td className="p-2"><Skeleton className="h-4 w-20" /></td>
+              <td className="p-2"><Skeleton className="h-4 w-20" /></td>
+              <td className="p-2"><Skeleton className="h-4 w-14" /></td>
+            </tr>
+          ))
+        ) : data.length === 0 ? (
           <tr>
             <td colSpan={4} className="text-center p-4 text-muted-foreground">
               Sem dados disponíveis
@@ -346,6 +377,43 @@ const HistoryTable = ({
   </div>
 );
 
+// Componente de erro/loading
+const DataStatusMessage = ({ 
+  isLoading, 
+  error, 
+  onRetry 
+}: { 
+  isLoading: boolean; 
+  error: string | null; 
+  onRetry: () => void;
+}) => {
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-4 text-muted-foreground gap-2">
+        <RefreshCw className="w-4 h-4 animate-spin" />
+        <span className="text-sm">Carregando dados da API...</span>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center p-4 gap-2">
+        <div className="flex items-center gap-2 text-destructive">
+          <AlertCircle className="w-4 h-4" />
+          <span className="text-sm">{error}</span>
+        </div>
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <RefreshCw className="w-3 h-3 mr-2" />
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
+  
+  return null;
+};
+
 export const ExternalAnalysisModal = ({
   open,
   onClose,
@@ -359,7 +427,62 @@ export const ExternalAnalysisModal = ({
   sellPrice,
 }: ExternalAnalysisModalProps) => {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('24');
+  
+  // Hooks para APIs externas
+  const { 
+    data: spreadHistoryData, 
+    isLoading: isLoadingSpreadHistory, 
+    error: spreadHistoryError,
+    fetchHistory 
+  } = useExternalSpreadHistory();
+  
+  const { 
+    data: monitorData, 
+    isLoading: isLoadingMonitor, 
+    error: monitorError,
+    fetchMonitorData 
+  } = useExternalMonitor();
 
+  // Buscar dados quando o modal abrir
+  useEffect(() => {
+    if (open && symbol) {
+      fetchHistory({
+        buyExchange: buyFrom,
+        buySymbol: symbol,
+        sellExchange: sellTo,
+        sellSymbol: symbol,
+        hoursBack: parseInt(timePeriod)
+      });
+      
+      fetchMonitorData({
+        symbol: symbol,
+        buyExchange: buyFrom,
+        buyMarket: 'spot',
+        sellExchange: sellTo,
+        sellMarket: 'future'
+      });
+    }
+  }, [open, symbol, buyFrom, sellTo, timePeriod, fetchHistory, fetchMonitorData]);
+
+  const handleRetry = useCallback(() => {
+    fetchHistory({
+      buyExchange: buyFrom,
+      buySymbol: symbol,
+      sellExchange: sellTo,
+      sellSymbol: symbol,
+      hoursBack: parseInt(timePeriod)
+    });
+    
+    fetchMonitorData({
+      symbol: symbol,
+      buyExchange: buyFrom,
+      buyMarket: 'spot',
+      sellExchange: sellTo,
+      sellMarket: 'future'
+    });
+  }, [buyFrom, symbol, sellTo, timePeriod, fetchHistory, fetchMonitorData]);
+
+  // Fallback para dados do WebSocket se APIs falharem
   const analysis = useMemo<CrossoverAnalysis | null>(() => {
     if (!histCruzamento) return null;
     try {
@@ -371,37 +494,47 @@ export const ExternalAnalysisModal = ({
     }
   }, [histCruzamento]);
 
-  // Filtrar dados pelo período selecionado
-  const filteredData = useMemo(() => {
+  // Usar dados da API externa ou fallback para WebSocket
+  const chartData = useMemo(() => {
+    // Priorizar dados da API do monitor
+    if (monitorData?.historicalData?.length) {
+      return monitorData.historicalData.map(item => ({
+        ...item,
+        time: item.timestamp?.split(' ')[1]?.substring(0, 5) || item.timestamp,
+      }));
+    }
+    
+    // Fallback para dados do WebSocket
     if (!analysis?.historicalData) return [];
     
     const now = new Date();
     const hoursAgo = parseInt(timePeriod);
     const cutoffTime = new Date(now.getTime() - (hoursAgo * 60 * 60 * 1000));
     
-    return analysis.historicalData.filter(item => {
-      const itemTime = new Date(item.timestamp);
-      return itemTime >= cutoffTime;
-    });
-  }, [analysis, timePeriod]);
+    return analysis.historicalData
+      .filter(item => {
+        const itemTime = new Date(item.timestamp);
+        return itemTime >= cutoffTime;
+      })
+      .map(item => {
+        const spreadPercent = item.exchange1Price > 0 
+          ? ((item.exchange2Price - item.exchange1Price) / item.exchange1Price) * 100 
+          : 0;
+        
+        return {
+          ...item,
+          time: item.timestamp.split(' ')[1]?.substring(0, 5) || item.timestamp,
+          spreadPercent,
+        };
+      });
+  }, [monitorData, analysis, timePeriod]);
 
-  // Dados para o gráfico
-  const chartData = useMemo(() => {
-    return filteredData.map(item => {
-      const spreadPercent = item.exchange1Price > 0 
-        ? ((item.exchange2Price - item.exchange1Price) / item.exchange1Price) * 100 
-        : 0;
-      
-      return {
-        ...item,
-        time: item.timestamp.split(' ')[1]?.substring(0, 5) || item.timestamp,
-        spreadPercent,
-      };
-    });
-  }, [filteredData]);
-
-  // Estatísticas gerais
+  // Estatísticas gerais (usar da API ou calcular do WebSocket)
   const stats = useMemo(() => {
+    if (monitorData?.stats) {
+      return monitorData.stats;
+    }
+    
     if (!chartData.length) return null;
     
     const spreads = chartData.map(d => d.spreadPercent);
@@ -417,10 +550,29 @@ export const ExternalAnalysisModal = ({
     }
     
     return { maxSpread, minSpread, avgSpread, inversions };
-  }, [chartData]);
+  }, [monitorData, chartData]);
 
-  // Separar dados em aberturas (spread positivo) e fechamentos (spread negativo/invertido)
+  // Dados de aberturas e fechamentos (usar da API ou processar do WebSocket)
   const { aberturasData, fechamentosData, aberturasStats, fechamentosStats } = useMemo(() => {
+    // Priorizar dados da API de spread history
+    if (spreadHistoryData) {
+      const formatApiData = (events: typeof spreadHistoryData.entry) => 
+        events.map(e => ({
+          time: e.timestamp?.split(' ')[1]?.substring(0, 5) || e.timestamp || '',
+          bidPrice: e.bidPrice,
+          askPrice: e.askPrice,
+          spread: e.spread
+        })).slice(0, 100); // Limitar para performance
+      
+      return {
+        aberturasData: formatApiData(spreadHistoryData.entry),
+        fechamentosData: formatApiData(spreadHistoryData.exit),
+        aberturasStats: spreadHistoryData.stats.entry,
+        fechamentosStats: spreadHistoryData.stats.exit
+      };
+    }
+    
+    // Fallback para dados do WebSocket
     const aberturas = chartData.filter(d => d.spreadPercent > 0);
     const fechamentos = chartData.filter(d => d.spreadPercent <= 0);
     
@@ -429,15 +581,16 @@ export const ExternalAnalysisModal = ({
       bidPrice: d.exchange1Price,
       askPrice: d.exchange2Price,
       spread: d.spreadPercent
-    })).reverse(); // Mais recentes primeiro
+    })).reverse();
 
     const calcStats = (data: typeof chartData) => {
-      if (!data.length) return { max: 0, min: 0, avg: 0 };
+      if (!data.length) return { max: 0, min: 0, avg: 0, count: 0 };
       const spreads = data.map(d => Math.abs(d.spreadPercent));
       return {
         max: Math.max(...spreads),
         min: Math.min(...spreads),
-        avg: spreads.reduce((a, b) => a + b, 0) / spreads.length
+        avg: spreads.reduce((a, b) => a + b, 0) / spreads.length,
+        count: data.length
       };
     };
 
@@ -447,7 +600,10 @@ export const ExternalAnalysisModal = ({
       aberturasStats: calcStats(aberturas),
       fechamentosStats: calcStats(fechamentos)
     };
-  }, [chartData]);
+  }, [spreadHistoryData, chartData]);
+
+  const isLoadingData = isLoadingSpreadHistory || isLoadingMonitor;
+  const hasError = spreadHistoryError || monitorError;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -459,6 +615,9 @@ export const ExternalAnalysisModal = ({
             <Badge variant="outline" className="bg-primary/20">
               {buyFrom.toUpperCase()} → {sellTo.toUpperCase()}
             </Badge>
+            {isLoadingData && (
+              <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -507,7 +666,7 @@ export const ExternalAnalysisModal = ({
               <Clock className="w-3 h-3" /> Cruzamentos
             </p>
             <p className="text-sm font-bold text-amber-400">
-              {analysis?.totalCrossovers || 0}x
+              {monitorData?.totalCrossovers || analysis?.totalCrossovers || 0}x
             </p>
           </div>
         </div>
@@ -527,17 +686,36 @@ export const ExternalAnalysisModal = ({
           <div className="flex-1 p-4 overflow-y-auto">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold">Histórico de Spreads</h3>
-              <Select value={timePeriod} onValueChange={(v) => setTimePeriod(v as TimePeriod)}>
-                <SelectTrigger className="w-24 h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1h</SelectItem>
-                  <SelectItem value="6">6h</SelectItem>
-                  <SelectItem value="24">24h</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleRetry}
+                  disabled={isLoadingData}
+                  className="h-8"
+                >
+                  <RefreshCw className={cn("w-3 h-3", isLoadingData && "animate-spin")} />
+                </Button>
+                <Select value={timePeriod} onValueChange={(v) => setTimePeriod(v as TimePeriod)}>
+                  <SelectTrigger className="w-24 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1h</SelectItem>
+                    <SelectItem value="6">6h</SelectItem>
+                    <SelectItem value="24">24h</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
+            {hasError && (
+              <DataStatusMessage 
+                isLoading={false} 
+                error={spreadHistoryError || monitorError} 
+                onRetry={handleRetry} 
+              />
+            )}
 
             <Tabs defaultValue="grafico" className="w-full">
               <TabsList className="grid w-full grid-cols-3 mb-4">
@@ -547,11 +725,11 @@ export const ExternalAnalysisModal = ({
                 </TabsTrigger>
                 <TabsTrigger value="aberturas" className="text-xs">
                   <TrendingUp className="w-3 h-3 mr-1" />
-                  Aberturas
+                  Aberturas ({aberturasData.length})
                 </TabsTrigger>
                 <TabsTrigger value="fechamentos" className="text-xs">
                   <TrendingDown className="w-3 h-3 mr-1" />
-                  Fechamentos
+                  Fechamentos ({fechamentosData.length})
                 </TabsTrigger>
               </TabsList>
 
@@ -562,28 +740,44 @@ export const ExternalAnalysisModal = ({
                     <Card className="bg-profit/10 border-profit/30">
                       <CardContent className="p-2">
                         <p className="text-[10px] text-muted-foreground">Máx Spread</p>
-                        <p className="text-sm font-bold text-profit">{stats.maxSpread.toFixed(3)}%</p>
+                        {isLoadingMonitor ? (
+                          <Skeleton className="h-5 w-14 mt-1" />
+                        ) : (
+                          <p className="text-sm font-bold text-profit">{stats.maxSpread.toFixed(3)}%</p>
+                        )}
                       </CardContent>
                     </Card>
                     <Card className="bg-negative/10 border-negative/30">
                       <CardContent className="p-2">
                         <p className="text-[10px] text-muted-foreground">Mín Spread</p>
-                        <p className="text-sm font-bold text-negative">{stats.minSpread.toFixed(3)}%</p>
+                        {isLoadingMonitor ? (
+                          <Skeleton className="h-5 w-14 mt-1" />
+                        ) : (
+                          <p className="text-sm font-bold text-negative">{stats.minSpread.toFixed(3)}%</p>
+                        )}
                       </CardContent>
                     </Card>
                     <Card className="bg-primary/10 border-primary/30">
                       <CardContent className="p-2">
                         <p className="text-[10px] text-muted-foreground">Média</p>
-                        <p className={cn(
-                          "text-sm font-bold",
-                          stats.avgSpread >= 0 ? 'text-profit' : 'text-negative'
-                        )}>{stats.avgSpread.toFixed(3)}%</p>
+                        {isLoadingMonitor ? (
+                          <Skeleton className="h-5 w-14 mt-1" />
+                        ) : (
+                          <p className={cn(
+                            "text-sm font-bold",
+                            stats.avgSpread >= 0 ? 'text-profit' : 'text-negative'
+                          )}>{stats.avgSpread.toFixed(3)}%</p>
+                        )}
                       </CardContent>
                     </Card>
                   </div>
                 )}
 
-                {chartData.length > 0 ? (
+                {isLoadingMonitor ? (
+                  <div className="h-64 flex items-center justify-center">
+                    <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : chartData.length > 0 ? (
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -633,8 +827,14 @@ export const ExternalAnalysisModal = ({
                   minSpread={aberturasStats.min}
                   avgSpread={aberturasStats.avg}
                   label="Entrada"
+                  count={aberturasStats.count}
+                  isLoading={isLoadingSpreadHistory}
                 />
-                <HistoryTable data={aberturasData} type="entrada" />
+                <HistoryTable 
+                  data={aberturasData} 
+                  type="entrada" 
+                  isLoading={isLoadingSpreadHistory}
+                />
               </TabsContent>
 
               {/* Tab Fechamentos */}
@@ -644,8 +844,14 @@ export const ExternalAnalysisModal = ({
                   minSpread={fechamentosStats.min}
                   avgSpread={fechamentosStats.avg}
                   label="Saída"
+                  count={fechamentosStats.count}
+                  isLoading={isLoadingSpreadHistory}
                 />
-                <HistoryTable data={fechamentosData} type="saida" />
+                <HistoryTable 
+                  data={fechamentosData} 
+                  type="saida" 
+                  isLoading={isLoadingSpreadHistory}
+                />
               </TabsContent>
             </Tabs>
           </div>
