@@ -1,4 +1,5 @@
-import { useMemo, useState, useEffect, useCallback, memo, useRef } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { useCrossings } from '@/hooks/useCrossings';
 import { Wifi, WifiOff, RefreshCw, Search, X, Filter, ChevronDown, ExternalLink, TrendingUp, Zap, Volume2, VolumeX, BarChart3, Star } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -42,6 +43,13 @@ const ExternalOpportunitiesTable = () => {
   
   const { favorites, toggleFavorite } = usePreferences();
   const isMobile = useIsMobile();
+  const { crossingsCount } = useCrossings();
+
+  // Função para obter cruzamentos de um par
+  const getCrossingsForPair = useCallback((symbol: string): number => {
+    const formatted = `${symbol}USDT`;
+    return crossingsCount[formatted] || crossingsCount[symbol] || 0;
+  }, [crossingsCount]);
   
   // Estados
   const [sortField, setSortField] = useState<SortField>('entrySpread');
@@ -587,6 +595,16 @@ const ExternalOpportunitiesTable = () => {
                         Saída % {sortField === 'exitSpread' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </Button>
                     </TableHead>
+                    <TableHead>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help text-xs font-semibold">Cruzamentos 1h</span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Quantidade de cruzamentos de fechamento (saída) na última hora</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TableHead>
                     <TableHead>Funding</TableHead>
                     <TableHead>
                       <Button variant="ghost" size="sm" onClick={() => handleSort('buyVol24')} className="font-semibold">
@@ -604,7 +622,7 @@ const ExternalOpportunitiesTable = () => {
                 <TableBody>
                   {paginatedOpportunities.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                         {isConnecting ? 'Carregando...' : search || activeFiltersCount > 0 ? 'Nenhuma oportunidade encontrada' : 'Aguardando dados...'}
                       </TableCell>
                     </TableRow>
@@ -667,6 +685,21 @@ const ExternalOpportunitiesTable = () => {
                           >
                             {formatNumber(opp.exitSpread, 4)}%
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {(() => {
+                            const count = getCrossingsForPair(opp.symbol);
+                            return count > 0 ? (
+                              <Badge 
+                                variant="outline" 
+                                className="bg-amber-500/20 text-amber-400 border-amber-500/40 font-mono"
+                              >
+                                {count}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-center">
                           {opp.buyFundingRate || opp.sellFundingRate ? (
