@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
-import { useCrossings } from '@/hooks/useCrossings';
 import { Wifi, WifiOff, RefreshCw, Search, X, Filter, ChevronDown, ExternalLink, TrendingUp, Zap, Volume2, VolumeX, BarChart3, Star } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -43,13 +42,6 @@ const ExternalOpportunitiesTable = () => {
   
   const { favorites, toggleFavorite } = usePreferences();
   const isMobile = useIsMobile();
-  const { crossingsCount } = useCrossings();
-
-  // Função para obter cruzamentos de um par
-  const getCrossingsForPair = useCallback((symbol: string): number => {
-    const formatted = `${symbol}USDT`;
-    return crossingsCount[formatted] || crossingsCount[symbol] || 0;
-  }, [crossingsCount]);
   
   // Estados
   const [sortField, setSortField] = useState<SortField>('entrySpread');
@@ -598,10 +590,10 @@ const ExternalOpportunitiesTable = () => {
                     <TableHead>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="cursor-help text-xs font-semibold">Cruzamentos 1h</span>
+                          <span className="cursor-help text-xs font-semibold">Cruz. 1h</span>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Quantidade de cruzamentos de fechamento (saída) na última hora</p>
+                          <p>Cruzamentos de fechamento na última hora (monitor externo)</p>
                         </TooltipContent>
                       </Tooltip>
                     </TableHead>
@@ -687,19 +679,16 @@ const ExternalOpportunitiesTable = () => {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center">
-                          {(() => {
-                            const count = getCrossingsForPair(opp.symbol);
-                            return count > 0 ? (
-                              <Badge 
-                                variant="outline" 
-                                className="bg-amber-500/20 text-amber-400 border-amber-500/40 font-mono"
-                              >
-                                {count}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            );
-                          })()}
+                          {opp.histCruzamento ? (
+                            <Badge 
+                              variant="outline" 
+                              className="bg-amber-500/20 text-amber-400 border-amber-500/40 font-mono"
+                            >
+                              {opp.histCruzamento}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-center">
                           {opp.buyFundingRate || opp.sellFundingRate ? (
