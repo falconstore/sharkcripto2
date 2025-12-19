@@ -768,6 +768,8 @@ const ExternalOpportunitiesTable = () => {
           exitSpread={selectedOpportunity.exitSpread}
           buyFrom={selectedOpportunity.buyFrom}
           sellTo={selectedOpportunity.sellTo}
+          buyPrice={selectedOpportunity.buyPrice}
+          sellPrice={selectedOpportunity.sellPrice}
         />
       )}
     </TooltipProvider>
