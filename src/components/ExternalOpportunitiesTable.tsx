@@ -28,6 +28,19 @@ import { FloatingArbitrageCalculator } from './FloatingArbitrageCalculator';
 type SortField = 'symbol' | 'entrySpread' | 'exitSpread' | 'buyVol24' | 'sellVol24';
 type SortOrder = 'asc' | 'desc';
 
+// Função para extrair totalCrossovers do histCruzamento JSON
+const getCrossingsCount = (histCruzamento: string | null | undefined): number | null => {
+  if (!histCruzamento) return null;
+  try {
+    const parsed = JSON.parse(histCruzamento);
+    // Pode ser { totalCrossovers: N } ou { crossoverAnalysis: { totalCrossovers: N } }
+    const analysis = parsed.crossoverAnalysis || parsed;
+    return analysis.totalCrossovers ?? null;
+  } catch {
+    return null;
+  }
+};
+
 const ExternalOpportunitiesTable = () => {
   const { 
     opportunities, 
@@ -679,16 +692,20 @@ const ExternalOpportunitiesTable = () => {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center">
-                          {opp.histCruzamento ? (
-                            <Badge 
-                              variant="outline" 
-                              className="bg-amber-500/20 text-amber-400 border-amber-500/40 font-mono"
-                            >
-                              {opp.histCruzamento}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
+                          {(() => {
+                            const count = getCrossingsCount(opp.histCruzamento);
+                            if (count !== null && count > 0) {
+                              return (
+                                <Badge 
+                                  variant="outline" 
+                                  className="bg-amber-500/20 text-amber-400 border-amber-500/40 font-mono"
+                                >
+                                  {count}
+                                </Badge>
+                              );
+                            }
+                            return <span className="text-muted-foreground">-</span>;
+                          })()}
                         </TableCell>
                         <TableCell className="text-center">
                           {opp.buyFundingRate || opp.sellFundingRate ? (
