@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { useEffect, useRef, useCallback } from 'react';
-
-// Interface para oportunidades do WebSocket externo
+import { toast } from 'sonner';
 export interface ExternalOpportunity {
   id: string;
   code: string;
@@ -69,7 +68,11 @@ export const useExternalArbitrage = () => {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
+  const lastUpdateTimeRef = useRef(0);
+  const pendingDataRef = useRef<string | null>(null);
+  const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const maxReconnectAttempts = 5;
+  const THROTTLE_MS = 1000; // Máximo 1 update por segundo
   
   const { 
     opportunities, 
@@ -142,7 +145,29 @@ export const useExternalArbitrage = () => {
       };
 
       ws.onmessage = (event) => {
-        parseMessage(event.data);
+        const now = Date.now();
+        const timeSinceLastUpdate = now - lastUpdateTimeRef.current;
+        
+        // Throttle: se passou menos de THROTTLE_MS, guarda os dados e agenda update
+        if (timeSinceLastUpdate < THROTTLE_MS) {
+          pendingDataRef.current = event.data;
+          
+          // Se não há timeout agendado, agendar
+          if (!throttleTimeoutRef.current) {
+            throttleTimeoutRef.current = setTimeout(() => {
+              if (pendingDataRef.current) {
+                parseMessage(pendingDataRef.current);
+                lastUpdateTimeRef.current = Date.now();
+                pendingDataRef.current = null;
+              }
+              throttleTimeoutRef.current = null;
+            }, THROTTLE_MS - timeSinceLastUpdate);
+          }
+        } else {
+          // Passou tempo suficiente, atualiza imediatamente
+          parseMessage(event.data);
+          lastUpdateTimeRef.current = now;
+        }
       };
 
       ws.onerror = (event) => {
@@ -179,6 +204,11 @@ export const useExternalArbitrage = () => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
+    }
+    
+    if (throttleTimeoutRef.current) {
+      clearTimeout(throttleTimeoutRef.current);
+      throttleTimeoutRef.current = null;
     }
     
     if (wsRef.current) {

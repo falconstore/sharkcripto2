@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect } from 'react';
-import { Wifi, WifiOff, RefreshCw, Search, X, Filter, ChevronDown, ExternalLink, TrendingUp, Zap } from 'lucide-react';
+import { useMemo, useState, useEffect, useCallback, memo, useRef } from 'react';
+import { Wifi, WifiOff, RefreshCw, Search, X, Filter, ChevronDown, ExternalLink, TrendingUp, Zap, Volume2, VolumeX } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -18,6 +19,8 @@ import {
 } from '@/components/ui/table';
 import { useExternalArbitrage, getExchangeColor, ExternalOpportunity } from '@/hooks/useExternalArbitrage';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { openExchangePages } from '@/lib/exchangeUrls';
 
 type SortField = 'symbol' | 'entrySpread' | 'exitSpread' | 'buyVol24' | 'sellVol24';
 type SortOrder = 'asc' | 'desc';
@@ -37,20 +40,35 @@ const ExternalOpportunitiesTable = () => {
   const isMobile = useIsMobile();
   
   // Estados
-  const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('entrySpread');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [filtersOpen, setFiltersOpen] = useState(false);
   
-  // Filtros
-  const [minEntry, setMinEntry] = useState('');
-  const [maxEntry, setMaxEntry] = useState('');
-  const [minExit, setMinExit] = useState('');
-  const [maxExit, setMaxExit] = useState('');
+  // Filtros (valores de input)
+  const [minEntryInput, setMinEntryInput] = useState('');
+  const [maxEntryInput, setMaxEntryInput] = useState('');
+  const [minExitInput, setMinExitInput] = useState('');
+  const [maxExitInput, setMaxExitInput] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [exchangeFilter, setExchangeFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  
+  // Alertas sonoros
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [alertThreshold, setAlertThreshold] = useState('3');
+  const lastAlertRef = useRef<Record<string, number>>({});
+
+  // Debounce nos filtros (300ms) para evitar lag
+  const search = useDebouncedValue(searchInput, 300);
+  const minEntry = useDebouncedValue(minEntryInput, 300);
+  const maxEntry = useDebouncedValue(maxEntryInput, 300);
+  const minExit = useDebouncedValue(minExitInput, 300);
+  const maxExit = useDebouncedValue(maxExitInput, 300);
+
+  // Ref para audio de alerta
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Lista de exchanges únicas
   const uniqueExchanges = useMemo(() => {
@@ -61,6 +79,40 @@ const ExternalOpportunitiesTable = () => {
     });
     return Array.from(exchanges).sort();
   }, [opportunities]);
+
+  // Tocar som de alerta
+  const playAlertSound = useCallback(() => {
+    if (!soundEnabled) return;
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio('/notification.mp3');
+        audioRef.current.volume = 0.3;
+      }
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    } catch (e) {
+      console.error('Error playing sound:', e);
+    }
+  }, [soundEnabled]);
+
+  // Verificar alertas quando oportunidades mudam
+  useEffect(() => {
+    if (!soundEnabled || !opportunities.length) return;
+    
+    const threshold = parseFloat(alertThreshold) || 3;
+    const now = Date.now();
+    const COOLDOWN_MS = 30000; // 30 segundos entre alertas do mesmo par
+    
+    opportunities.forEach(opp => {
+      if (opp.entrySpread >= threshold) {
+        const lastAlert = lastAlertRef.current[opp.code] || 0;
+        if (now - lastAlert > COOLDOWN_MS) {
+          playAlertSound();
+          lastAlertRef.current[opp.code] = now;
+        }
+      }
+    });
+  }, [opportunities, soundEnabled, alertThreshold, playAlertSound]);
 
   // Filtragem e ordenação
   const filteredAndSorted = useMemo(() => {
@@ -192,15 +244,16 @@ const ExternalOpportunitiesTable = () => {
   };
 
   const clearFilters = () => {
-    setMinEntry('');
-    setMaxEntry('');
-    setMinExit('');
-    setMaxExit('');
+    setMinEntryInput('');
+    setMaxEntryInput('');
+    setMinExitInput('');
+    setMaxExitInput('');
+    setSearchInput('');
     setExchangeFilter('all');
     setTypeFilter('all');
   };
 
-  const activeFiltersCount = [minEntry, maxEntry, minExit, maxExit].filter(v => v !== '').length +
+  const activeFiltersCount = [minEntryInput, maxEntryInput, minExitInput, maxExitInput].filter(v => v !== '').length +
     (exchangeFilter !== 'all' ? 1 : 0) + (typeFilter !== 'all' ? 1 : 0);
 
   const ExchangeBadge = ({ exchange, type }: { exchange: string; type: 'SPOT' | 'FUTURES' }) => {
@@ -223,8 +276,8 @@ const ExternalOpportunitiesTable = () => {
         <Label className="text-xs">Entrada % mín</Label>
         <Input
           type="number"
-          value={minEntry}
-          onChange={(e) => setMinEntry(e.target.value)}
+          value={minEntryInput}
+          onChange={(e) => setMinEntryInput(e.target.value)}
           placeholder="0"
           className="h-8 text-sm"
           step="0.01"
@@ -234,8 +287,8 @@ const ExternalOpportunitiesTable = () => {
         <Label className="text-xs">Entrada % máx</Label>
         <Input
           type="number"
-          value={maxEntry}
-          onChange={(e) => setMaxEntry(e.target.value)}
+          value={maxEntryInput}
+          onChange={(e) => setMaxEntryInput(e.target.value)}
           placeholder="10"
           className="h-8 text-sm"
           step="0.01"
@@ -245,8 +298,8 @@ const ExternalOpportunitiesTable = () => {
         <Label className="text-xs">Saída % mín</Label>
         <Input
           type="number"
-          value={minExit}
-          onChange={(e) => setMinExit(e.target.value)}
+          value={minExitInput}
+          onChange={(e) => setMinExitInput(e.target.value)}
           placeholder="-5"
           className="h-8 text-sm"
           step="0.01"
@@ -256,8 +309,8 @@ const ExternalOpportunitiesTable = () => {
         <Label className="text-xs">Saída % máx</Label>
         <Input
           type="number"
-          value={maxExit}
-          onChange={(e) => setMaxExit(e.target.value)}
+          value={maxExitInput}
+          onChange={(e) => setMaxExitInput(e.target.value)}
           placeholder="5"
           className="h-8 text-sm"
           step="0.01"
@@ -329,6 +382,23 @@ const ExternalOpportunitiesTable = () => {
                 )}
               </div>
 
+              {/* Toggle de som */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSoundEnabled(!soundEnabled)}
+                    className={soundEnabled ? 'bg-profit/20 border-profit/40' : ''}
+                  >
+                    {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {soundEnabled ? 'Alertas sonoros ativados' : 'Ativar alertas sonoros'}
+                </TooltipContent>
+              </Tooltip>
+
               {/* Botão conectar/desconectar */}
               <Button
                 variant={isConnected ? "destructive" : "default"}
@@ -344,8 +414,8 @@ const ExternalOpportunitiesTable = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar par..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="pl-9 w-full sm:w-48"
                 />
               </div>
@@ -445,6 +515,7 @@ const ExternalOpportunitiesTable = () => {
                         Vol. Venda {sortField === 'sellVol24' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </Button>
                     </TableHead>
+                    <TableHead className="w-12">Ação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -518,6 +589,20 @@ const ExternalOpportunitiesTable = () => {
                         </TableCell>
                         <TableCell className="font-mono text-sm">
                           {formatVolume(opp.sellVol24)}
+                        </TableCell>
+                        <TableCell>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openExchangePages(opp.symbol, opp.buyFrom, opp.buyType, opp.sellTo, opp.sellType)}
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Abrir nas exchanges</TooltipContent>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     ))

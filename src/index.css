@@ -396,3 +396,44 @@
     background-color: transparent;
   }
 }
+
+/* Alert animations - flashing borders */
+@keyframes piscar-borda-amarela {
+  0% { box-shadow: 0 0 0 0 hsl(48 100% 50% / 0.7); }
+  50% { box-shadow: 0 0 0 10px hsl(48 100% 50% / 0.7); }
+  100% { box-shadow: 0 0 0 0 hsl(48 100% 50% / 0.7); }
+}
+
+@keyframes piscar-borda-vermelha {
+  0% { box-shadow: 0 0 0 0 hsl(0 100% 50% / 0.7); }
+  50% { box-shadow: 0 0 0 10px hsl(0 100% 50% / 0.7); }
+  100% { box-shadow: 0 0 0 0 hsl(0 100% 50% / 0.7); }
+}
+
+@keyframes piscar-borda-verde {
+  0% { box-shadow: 0 0 0 0 hsl(142 76% 40% / 0.7); }
+  50% { box-shadow: 0 0 0 10px hsl(142 76% 40% / 0.7); }
+  100% { box-shadow: 0 0 0 0 hsl(142 76% 40% / 0.7); }
+}
+
+.animate-alert-entrada {
+  animation: piscar-borda-verde 1.5s infinite;
+  border: 3px solid hsl(142 76% 40%) !important;
+}
+
+.animate-alert-saida {
+  animation: piscar-borda-amarela 1.5s infinite;
+  border: 3px solid hsl(48 100% 50%) !important;
+}
+
+.animate-alert-short {
+  animation: piscar-borda-vermelha 1.5s infinite;
+  border: 3px solid hsl(0 100% 50%) !important;
+}
+
+/* Spread gradient colors */
+.spread-gradient-0 { color: hsl(142 76% 45%); } /* Verde */
+.spread-gradient-25 { color: hsl(80 60% 45%); } /* Verde-Amarelo */
+.spread-gradient-50 { color: hsl(48 100% 50%); } /* Amarelo */
+.spread-gradient-75 { color: hsl(24 100% 50%); } /* Laranja */
+.spread-gradient-100 { color: hsl(0 90% 50%); } /* Vermelho */
