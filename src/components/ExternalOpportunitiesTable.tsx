@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useCallback, memo, useRef } from 'react';
-import { Wifi, WifiOff, RefreshCw, Search, X, Filter, ChevronDown, ExternalLink, TrendingUp, Zap, Volume2, VolumeX, BarChart3 } from 'lucide-react';
+import { Wifi, WifiOff, RefreshCw, Search, X, Filter, ChevronDown, ExternalLink, TrendingUp, Zap, Volume2, VolumeX, BarChart3, Star } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useExternalArbitrage, getExchangeColor, ExternalOpportunity } from '@/hooks/useExternalArbitrage';
+import { usePreferences } from '@/hooks/usePreferences';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { openExchangePages } from '@/lib/exchangeUrls';
@@ -39,6 +40,7 @@ const ExternalOpportunitiesTable = () => {
     disconnect 
   } = useExternalArbitrage();
   
+  const { favorites, toggleFavorite } = usePreferences();
   const isMobile = useIsMobile();
   
   // Estados
@@ -53,6 +55,8 @@ const ExternalOpportunitiesTable = () => {
   const [maxEntryInput, setMaxEntryInput] = useState('');
   const [minExitInput, setMinExitInput] = useState('');
   const [maxExitInput, setMaxExitInput] = useState('');
+  const [minVolSpotInput, setMinVolSpotInput] = useState('');
+  const [minVolFutInput, setMinVolFutInput] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [buyExchangeFilters, setBuyExchangeFilters] = useState<string[]>([]);
   const [sellExchangeFilters, setSellExchangeFilters] = useState<string[]>([]);
@@ -73,18 +77,31 @@ const ExternalOpportunitiesTable = () => {
   const maxEntry = useDebouncedValue(maxEntryInput, 300);
   const minExit = useDebouncedValue(minExitInput, 300);
   const maxExit = useDebouncedValue(maxExitInput, 300);
+  const minVolSpot = useDebouncedValue(minVolSpotInput, 300);
+  const minVolFut = useDebouncedValue(minVolFutInput, 300);
 
   // Ref para audio de alerta
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Lista de exchanges únicas
-  const uniqueExchanges = useMemo(() => {
-    const exchanges = new Set<string>();
+  // Lista de exchanges únicas - acumula sem remover para evitar flickering nos filtros
+  const exchangeSetRef = useRef<Set<string>>(new Set());
+  const [availableExchanges, setAvailableExchanges] = useState<string[]>([]);
+
+  useEffect(() => {
+    let hasNew = false;
     opportunities.forEach(opp => {
-      exchanges.add(opp.buyFrom);
-      exchanges.add(opp.sellTo);
+      if (!exchangeSetRef.current.has(opp.buyFrom)) {
+        exchangeSetRef.current.add(opp.buyFrom);
+        hasNew = true;
+      }
+      if (!exchangeSetRef.current.has(opp.sellTo)) {
+        exchangeSetRef.current.add(opp.sellTo);
+        hasNew = true;
+      }
     });
-    return Array.from(exchanges).sort();
+    if (hasNew) {
+      setAvailableExchanges(Array.from(exchangeSetRef.current).sort());
+    }
   }, [opportunities]);
 
   // Tocar som de alerta
@@ -139,6 +156,8 @@ const ExternalOpportunitiesTable = () => {
     const maxEntryNum = parseNum(maxEntry);
     const minExitNum = parseNum(minExit);
     const maxExitNum = parseNum(maxExit);
+    const minVolSpotNum = parseNum(minVolSpot);
+    const minVolFutNum = parseNum(minVolFut);
 
     if (minEntryNum !== null) {
       filtered = filtered.filter(opp => opp.entrySpread >= minEntryNum);
@@ -151,6 +170,12 @@ const ExternalOpportunitiesTable = () => {
     }
     if (maxExitNum !== null) {
       filtered = filtered.filter(opp => opp.exitSpread <= maxExitNum);
+    }
+    if (minVolSpotNum !== null) {
+      filtered = filtered.filter(opp => parseFloat(opp.buyVol24) >= minVolSpotNum);
+    }
+    if (minVolFutNum !== null) {
+      filtered = filtered.filter(opp => parseFloat(opp.sellVol24) >= minVolFutNum);
     }
 
     // Filtro de exchanges de compra (multi-select)
@@ -179,46 +204,52 @@ const ExternalOpportunitiesTable = () => {
       });
     }
 
+    // Separar favoritos
+    const favoritesArray = filtered.filter(opp => favorites.has(opp.symbol) || favorites.has(opp.code));
+    const nonFavoritesArray = filtered.filter(opp => !favorites.has(opp.symbol) && !favorites.has(opp.code));
+
     // Ordenação
-    filtered.sort((a, b) => {
-      let aVal: number | string;
-      let bVal: number | string;
+    const sortArray = (arr: typeof filtered) => {
+      return arr.sort((a, b) => {
+        let aVal: number | string;
+        let bVal: number | string;
 
-      switch (sortField) {
-        case 'symbol':
-          aVal = a.symbol;
-          bVal = b.symbol;
-          break;
-        case 'entrySpread':
-          aVal = a.entrySpread;
-          bVal = b.entrySpread;
-          break;
-        case 'exitSpread':
-          aVal = a.exitSpread;
-          bVal = b.exitSpread;
-          break;
-        case 'buyVol24':
-          aVal = parseFloat(a.buyVol24) || 0;
-          bVal = parseFloat(b.buyVol24) || 0;
-          break;
-        case 'sellVol24':
-          aVal = parseFloat(a.sellVol24) || 0;
-          bVal = parseFloat(b.sellVol24) || 0;
-          break;
-        default:
-          return 0;
-      }
+        switch (sortField) {
+          case 'symbol':
+            aVal = a.symbol;
+            bVal = b.symbol;
+            break;
+          case 'entrySpread':
+            aVal = a.entrySpread;
+            bVal = b.entrySpread;
+            break;
+          case 'exitSpread':
+            aVal = a.exitSpread;
+            bVal = b.exitSpread;
+            break;
+          case 'buyVol24':
+            aVal = parseFloat(a.buyVol24) || 0;
+            bVal = parseFloat(b.buyVol24) || 0;
+            break;
+          case 'sellVol24':
+            aVal = parseFloat(a.sellVol24) || 0;
+            bVal = parseFloat(b.sellVol24) || 0;
+            break;
+          default:
+            return 0;
+        }
 
-      if (typeof aVal === 'string') {
-        const comparison = aVal.localeCompare(bVal as string);
-        return sortOrder === 'asc' ? comparison : -comparison;
-      }
-      
-      return sortOrder === 'asc' ? aVal - (bVal as number) : (bVal as number) - aVal;
-    });
+        if (typeof aVal === 'string') {
+          const comparison = aVal.localeCompare(bVal as string);
+          return sortOrder === 'asc' ? comparison : -comparison;
+        }
+        
+        return sortOrder === 'asc' ? aVal - (bVal as number) : (bVal as number) - aVal;
+      });
+    };
 
-    return filtered;
-  }, [opportunities, search, minEntry, maxEntry, minExit, maxExit, buyExchangeFilters, sellExchangeFilters, typeFilter, sortField, sortOrder]);
+    return [...sortArray(favoritesArray), ...sortArray(nonFavoritesArray)];
+  }, [opportunities, search, minEntry, maxEntry, minExit, maxExit, minVolSpot, minVolFut, buyExchangeFilters, sellExchangeFilters, typeFilter, sortField, sortOrder, favorites]);
 
   // Paginação
   const paginatedOpportunities = useMemo(() => {
@@ -231,7 +262,7 @@ const ExternalOpportunitiesTable = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, minEntry, maxEntry, minExit, maxExit, buyExchangeFilters, sellExchangeFilters, typeFilter]);
+  }, [search, minEntry, maxEntry, minExit, maxExit, minVolSpot, minVolFut, buyExchangeFilters, sellExchangeFilters, typeFilter]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -261,14 +292,18 @@ const ExternalOpportunitiesTable = () => {
     setMaxEntryInput('');
     setMinExitInput('');
     setMaxExitInput('');
+    setMinVolSpotInput('');
+    setMinVolFutInput('');
     setSearchInput('');
     setBuyExchangeFilters([]);
     setSellExchangeFilters([]);
     setTypeFilter('all');
   };
 
-  const activeFiltersCount = [minEntryInput, maxEntryInput, minExitInput, maxExitInput].filter(v => v !== '').length +
+  const activeFiltersCount = [minEntryInput, maxEntryInput, minExitInput, maxExitInput, minVolSpotInput, minVolFutInput].filter(v => v !== '').length +
     buyExchangeFilters.length + sellExchangeFilters.length + (typeFilter !== 'all' ? 1 : 0);
+    
+  const isFavorite = (opp: ExternalOpportunity) => favorites.has(opp.symbol) || favorites.has(opp.code);
 
   const ExchangeBadge = ({ exchange, type }: { exchange: string; type: 'SPOT' | 'FUTURES' }) => {
     const colors = getExchangeColor(exchange);
@@ -277,8 +312,8 @@ const ExternalOpportunitiesTable = () => {
         <Badge variant="outline" className={`${colors.bg} ${colors.text} ${colors.border} text-xs font-semibold`}>
           {exchange.toUpperCase()}
         </Badge>
-        <Badge variant="outline" className={`text-xs ${type === 'SPOT' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-violet-500/20 text-violet-400'}`}>
-          {type === 'SPOT' ? '🟢' : '📊'}
+        <Badge variant="outline" className={`text-xs font-bold ${type === 'SPOT' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-violet-500/20 text-violet-400 border-violet-500/40'}`}>
+          {type === 'SPOT' ? 'S' : 'F'}
         </Badge>
       </div>
     );
@@ -290,14 +325,14 @@ const ExternalOpportunitiesTable = () => {
   };
 
   const AdvancedFilters = () => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2 p-3 bg-accent/30 rounded-lg">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-2 p-3 bg-accent/30 rounded-lg">
       <div className="space-y-1">
         <Label className="text-xs">Entrada % mín</Label>
         <Input
           type="number"
           value={minEntryInput}
           onChange={(e) => setMinEntryInput(e.target.value)}
-          placeholder="0"
+          placeholder="-5"
           className="h-8 text-sm"
           step="0.01"
         />
@@ -308,7 +343,7 @@ const ExternalOpportunitiesTable = () => {
           type="number"
           value={maxEntryInput}
           onChange={(e) => setMaxEntryInput(e.target.value)}
-          placeholder="10"
+          placeholder="5"
           className="h-8 text-sm"
           step="0.01"
         />
@@ -319,7 +354,7 @@ const ExternalOpportunitiesTable = () => {
           type="number"
           value={minExitInput}
           onChange={(e) => setMinExitInput(e.target.value)}
-          placeholder="-5"
+          placeholder="0"
           className="h-8 text-sm"
           step="0.01"
         />
@@ -330,9 +365,29 @@ const ExternalOpportunitiesTable = () => {
           type="number"
           value={maxExitInput}
           onChange={(e) => setMaxExitInput(e.target.value)}
-          placeholder="5"
+          placeholder="10"
           className="h-8 text-sm"
           step="0.01"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Vol. Spot mín</Label>
+        <Input
+          type="number"
+          value={minVolSpotInput}
+          onChange={(e) => setMinVolSpotInput(e.target.value)}
+          placeholder="100000"
+          className="h-8 text-sm"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Vol. Fut mín</Label>
+        <Input
+          type="number"
+          value={minVolFutInput}
+          onChange={(e) => setMinVolFutInput(e.target.value)}
+          placeholder="100000"
+          className="h-8 text-sm"
         />
       </div>
       <div className="space-y-1">
@@ -340,7 +395,7 @@ const ExternalOpportunitiesTable = () => {
         <MultiSelectExchange
           label="Compra"
           selectedExchanges={buyExchangeFilters}
-          availableExchanges={uniqueExchanges}
+          availableExchanges={availableExchanges}
           onSelectionChange={setBuyExchangeFilters}
           className="w-full"
         />
@@ -350,7 +405,7 @@ const ExternalOpportunitiesTable = () => {
         <MultiSelectExchange
           label="Venda"
           selectedExchanges={sellExchangeFilters}
-          availableExchanges={uniqueExchanges}
+          availableExchanges={availableExchanges}
           onSelectionChange={setSellExchangeFilters}
           className="w-full"
         />
@@ -512,6 +567,7 @@ const ExternalOpportunitiesTable = () => {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-primary/5">
+                    <TableHead className="w-10"></TableHead>
                     <TableHead>
                       <Button variant="ghost" size="sm" onClick={() => handleSort('symbol')} className="font-semibold">
                         Par {sortField === 'symbol' && (sortOrder === 'asc' ? '↑' : '↓')}
@@ -546,7 +602,7 @@ const ExternalOpportunitiesTable = () => {
                 <TableBody>
                   {paginatedOpportunities.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                         {isConnecting ? 'Carregando...' : search || activeFiltersCount > 0 ? 'Nenhuma oportunidade encontrada' : 'Aguardando dados...'}
                       </TableCell>
                     </TableRow>
@@ -556,9 +612,21 @@ const ExternalOpportunitiesTable = () => {
                         key={opp.id}
                         className={`
                           hover:bg-accent/80 transition-all duration-200
-                          ${index % 2 === 0 ? 'bg-card' : 'bg-accent/20'}
+                          ${isFavorite(opp) ? 'bg-gold/10' : index % 2 === 0 ? 'bg-card' : 'bg-accent/20'}
                         `}
                       >
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleFavorite(opp.symbol)}
+                            className="p-1 h-auto"
+                          >
+                            <Star
+                              className={`w-4 h-4 ${isFavorite(opp) ? 'fill-gold text-gold' : 'text-muted-foreground'}`}
+                            />
+                          </Button>
+                        </TableCell>
                         <TableCell className="font-mono font-semibold">
                           {opp.symbol}
                         </TableCell>
