@@ -33,7 +33,6 @@ const getCrossingsCount = (histCruzamento: string | null | undefined): number | 
   if (!histCruzamento) return null;
   try {
     const parsed = JSON.parse(histCruzamento);
-    // Pode ser { totalCrossovers: N } ou { crossoverAnalysis: { totalCrossovers: N } }
     const analysis = parsed.crossoverAnalysis || parsed;
     return analysis.totalCrossovers ?? null;
   } catch {
@@ -41,20 +40,83 @@ const getCrossingsCount = (histCruzamento: string | null | undefined): number | 
   }
 };
 
-const ExternalOpportunitiesTable = () => {
-  // DEBUG: Log para inspecionar o campo 'current' das oportunidades
-  const logCurrentField = (opportunities: any[]) => {
-    if (opportunities.length > 0) {
-      console.log('=== DEBUG: Campos "current" das oportunidades ===');
-      opportunities.slice(0, 3).forEach((opp, idx) => {
-        console.log(`[${idx}] ${opp.symbol}:`, {
-          current: opp.current,
-          histCruzamento: opp.histCruzamento ? JSON.parse(opp.histCruzamento) : null,
-        });
-      });
-    }
+// Função para parsear histCruzamento completo
+const parseHistCruzamento = (histCruzamento: string | null | undefined) => {
+  if (!histCruzamento) return null;
+  try {
+    return JSON.parse(histCruzamento);
+  } catch {
+    return null;
+  }
+};
+
+// Componente de tooltip com estatísticas históricas
+const HistoricalStatsTooltip = ({ histCruzamento }: { histCruzamento: string | null | undefined }) => {
+  const stats = parseHistCruzamento(histCruzamento);
+  if (!stats) return <span className="text-muted-foreground text-xs">Sem dados históricos</span>;
+  
+  const formatSpread = (val: number | null | undefined) => {
+    if (val === null || val === undefined) return '-';
+    return `${val.toFixed(4)}%`;
   };
 
+  const formatTime = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '-';
+    try {
+      return new Date(dateStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '-';
+    }
+  };
+  
+  return (
+    <div className="space-y-2 min-w-[220px]">
+      <div className="font-semibold text-sm border-b border-border pb-1 mb-2 flex items-center gap-2">
+        <BarChart3 className="w-4 h-4 text-primary" />
+        Estatísticas 6h
+      </div>
+      
+      {/* Spreads Médios */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+        <span className="text-muted-foreground">Entrada Média:</span>
+        <span className="text-emerald-400 font-mono">{formatSpread(stats.avg_entry_spread)}</span>
+        
+        <span className="text-muted-foreground">Saída Média:</span>
+        <span className="text-blue-400 font-mono">{formatSpread(stats.avg_exit_spread)}</span>
+        
+        <span className="text-muted-foreground">Pico Entrada:</span>
+        <span className="text-amber-400 font-mono">{formatSpread(stats.peak_entry_spread)}</span>
+        
+        <span className="text-muted-foreground">Pico Saída:</span>
+        <span className="text-purple-400 font-mono">{formatSpread(stats.peak_exit_spread)}</span>
+      </div>
+      
+      {/* Contadores */}
+      <div className="border-t border-border pt-2 mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+        <span className="text-muted-foreground">Cruzamentos:</span>
+        <span className="font-mono font-semibold">{stats.totalCrossovers ?? '-'}</span>
+        
+        <span className="text-muted-foreground">Inversões:</span>
+        <span className="text-red-400 font-mono">{stats.inverted_count ?? 0}</span>
+        
+        <span className="text-muted-foreground">Entradas:</span>
+        <span className="font-mono">{stats.entry?.length ?? 0}</span>
+        
+        <span className="text-muted-foreground">Saídas:</span>
+        <span className="font-mono">{stats.exit?.length ?? 0}</span>
+      </div>
+      
+      {/* Período */}
+      {stats.date_start && (
+        <div className="text-[10px] text-muted-foreground border-t border-border pt-1.5 mt-1.5">
+          Período: {formatTime(stats.date_start)} - {formatTime(stats.date_end)}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ExternalOpportunitiesTable = () => {
   const { 
     opportunities, 
     isConnected, 
@@ -65,11 +127,6 @@ const ExternalOpportunitiesTable = () => {
     connect, 
     disconnect 
   } = useExternalArbitrage();
-  
-  // DEBUG: Log do campo 'current' quando oportunidades mudarem
-  useEffect(() => {
-    logCurrentField(opportunities);
-  }, [opportunities]);
   
   const { favorites, toggleFavorite } = usePreferences();
   const isMobile = useIsMobile();
@@ -671,7 +728,16 @@ const ExternalOpportunitiesTable = () => {
                           </Button>
                         </TableCell>
                         <TableCell className="font-mono font-semibold">
-                          {opp.symbol}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help hover:text-primary transition-colors underline decoration-dotted underline-offset-4 decoration-muted-foreground/50">
+                                {opp.symbol}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="p-3 max-w-xs">
+                              <HistoricalStatsTooltip histCruzamento={opp.histCruzamento} />
+                            </TooltipContent>
+                          </Tooltip>
                         </TableCell>
                         <TableCell>
                           <ExchangeBadge exchange={opp.buyFrom} type={opp.buyType} />
