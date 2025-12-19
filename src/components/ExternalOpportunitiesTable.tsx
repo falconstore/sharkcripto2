@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useCallback, memo, useRef } from 'react';
-import { Wifi, WifiOff, RefreshCw, Search, X, Filter, ChevronDown, ExternalLink, TrendingUp, Zap, Volume2, VolumeX } from 'lucide-react';
+import { Wifi, WifiOff, RefreshCw, Search, X, Filter, ChevronDown, ExternalLink, TrendingUp, Zap, Volume2, VolumeX, BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,8 @@ import { useExternalArbitrage, getExchangeColor, ExternalOpportunity } from '@/h
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { openExchangePages } from '@/lib/exchangeUrls';
+import { MultiSelectExchange } from './MultiSelectExchange';
+import { ExternalAnalysisModal } from './ExternalAnalysisModal';
 
 type SortField = 'symbol' | 'entrySpread' | 'exitSpread' | 'buyVol24' | 'sellVol24';
 type SortOrder = 'asc' | 'desc';
@@ -52,8 +54,13 @@ const ExternalOpportunitiesTable = () => {
   const [minExitInput, setMinExitInput] = useState('');
   const [maxExitInput, setMaxExitInput] = useState('');
   const [searchInput, setSearchInput] = useState('');
-  const [exchangeFilter, setExchangeFilter] = useState<string>('all');
+  const [buyExchangeFilters, setBuyExchangeFilters] = useState<string[]>([]);
+  const [sellExchangeFilters, setSellExchangeFilters] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>('all');
+
+  // Modal de análise
+  const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
+  const [selectedOpportunity, setSelectedOpportunity] = useState<ExternalOpportunity | null>(null);
   
   // Alertas sonoros
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -146,11 +153,17 @@ const ExternalOpportunitiesTable = () => {
       filtered = filtered.filter(opp => opp.exitSpread <= maxExitNum);
     }
 
-    // Filtro de exchange
-    if (exchangeFilter !== 'all') {
+    // Filtro de exchanges de compra (multi-select)
+    if (buyExchangeFilters.length > 0) {
       filtered = filtered.filter(opp => 
-        opp.buyFrom.toLowerCase() === exchangeFilter.toLowerCase() ||
-        opp.sellTo.toLowerCase() === exchangeFilter.toLowerCase()
+        buyExchangeFilters.some(ex => opp.buyFrom.toLowerCase() === ex.toLowerCase())
+      );
+    }
+
+    // Filtro de exchanges de venda (multi-select)
+    if (sellExchangeFilters.length > 0) {
+      filtered = filtered.filter(opp => 
+        sellExchangeFilters.some(ex => opp.sellTo.toLowerCase() === ex.toLowerCase())
       );
     }
 
@@ -205,7 +218,7 @@ const ExternalOpportunitiesTable = () => {
     });
 
     return filtered;
-  }, [opportunities, search, minEntry, maxEntry, minExit, maxExit, exchangeFilter, typeFilter, sortField, sortOrder]);
+  }, [opportunities, search, minEntry, maxEntry, minExit, maxExit, buyExchangeFilters, sellExchangeFilters, typeFilter, sortField, sortOrder]);
 
   // Paginação
   const paginatedOpportunities = useMemo(() => {
@@ -218,7 +231,7 @@ const ExternalOpportunitiesTable = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, minEntry, maxEntry, minExit, maxExit, exchangeFilter, typeFilter]);
+  }, [search, minEntry, maxEntry, minExit, maxExit, buyExchangeFilters, sellExchangeFilters, typeFilter]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -249,12 +262,13 @@ const ExternalOpportunitiesTable = () => {
     setMinExitInput('');
     setMaxExitInput('');
     setSearchInput('');
-    setExchangeFilter('all');
+    setBuyExchangeFilters([]);
+    setSellExchangeFilters([]);
     setTypeFilter('all');
   };
 
   const activeFiltersCount = [minEntryInput, maxEntryInput, minExitInput, maxExitInput].filter(v => v !== '').length +
-    (exchangeFilter !== 'all' ? 1 : 0) + (typeFilter !== 'all' ? 1 : 0);
+    buyExchangeFilters.length + sellExchangeFilters.length + (typeFilter !== 'all' ? 1 : 0);
 
   const ExchangeBadge = ({ exchange, type }: { exchange: string; type: 'SPOT' | 'FUTURES' }) => {
     const colors = getExchangeColor(exchange);
@@ -270,8 +284,13 @@ const ExternalOpportunitiesTable = () => {
     );
   };
 
+  const openAnalysisModal = (opp: ExternalOpportunity) => {
+    setSelectedOpportunity(opp);
+    setAnalysisModalOpen(true);
+  };
+
   const AdvancedFilters = () => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 p-3 bg-accent/30 rounded-lg">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2 p-3 bg-accent/30 rounded-lg">
       <div className="space-y-1">
         <Label className="text-xs">Entrada % mín</Label>
         <Input
@@ -317,18 +336,24 @@ const ExternalOpportunitiesTable = () => {
         />
       </div>
       <div className="space-y-1">
-        <Label className="text-xs">Exchange</Label>
-        <Select value={exchangeFilter} onValueChange={setExchangeFilter}>
-          <SelectTrigger className="h-8 text-sm">
-            <SelectValue placeholder="Todas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {uniqueExchanges.map(ex => (
-              <SelectItem key={ex} value={ex.toLowerCase()}>{ex.toUpperCase()}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label className="text-xs">Compra (Exchange)</Label>
+        <MultiSelectExchange
+          label="Compra"
+          selectedExchanges={buyExchangeFilters}
+          availableExchanges={uniqueExchanges}
+          onSelectionChange={setBuyExchangeFilters}
+          className="w-full"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Venda (Exchange)</Label>
+        <MultiSelectExchange
+          label="Venda"
+          selectedExchanges={sellExchangeFilters}
+          availableExchanges={uniqueExchanges}
+          onSelectionChange={setSellExchangeFilters}
+          className="w-full"
+        />
       </div>
       <div className="space-y-1">
         <Label className="text-xs">Tipo</Label>
@@ -515,13 +540,13 @@ const ExternalOpportunitiesTable = () => {
                         Vol. Venda {sortField === 'sellVol24' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </Button>
                     </TableHead>
-                    <TableHead className="w-12">Ação</TableHead>
+                    <TableHead className="w-24">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedOpportunities.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         {isConnecting ? 'Carregando...' : search || activeFiltersCount > 0 ? 'Nenhuma oportunidade encontrada' : 'Aguardando dados...'}
                       </TableCell>
                     </TableRow>
@@ -591,18 +616,34 @@ const ExternalOpportunitiesTable = () => {
                           {formatVolume(opp.sellVol24)}
                         </TableCell>
                         <TableCell>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openExchangePages(opp.symbol, opp.buyFrom, opp.buyType, opp.sellTo, opp.sellType)}
-                              >
-                                <ExternalLink className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Abrir nas exchanges</TooltipContent>
-                          </Tooltip>
+                          <div className="flex items-center gap-1">
+                            {opp.histCruzamento && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openAnalysisModal(opp)}
+                                  >
+                                    <BarChart3 className="w-4 h-4 text-purple-400" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Ver análise de cruzamento</TooltipContent>
+                              </Tooltip>
+                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openExchangePages(opp.symbol, opp.buyFrom, opp.buyType, opp.sellTo, opp.sellType)}
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Abrir nas exchanges</TooltipContent>
+                            </Tooltip>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -645,6 +686,20 @@ const ExternalOpportunitiesTable = () => {
           )}
         </CardContent>
       </Card>
+      
+      {/* Modal de análise de cruzamento */}
+      {selectedOpportunity && (
+        <ExternalAnalysisModal
+          open={analysisModalOpen}
+          onClose={() => setAnalysisModalOpen(false)}
+          symbol={selectedOpportunity.symbol}
+          histCruzamento={selectedOpportunity.histCruzamento}
+          entrySpread={selectedOpportunity.entrySpread}
+          exitSpread={selectedOpportunity.exitSpread}
+          buyFrom={selectedOpportunity.buyFrom}
+          sellTo={selectedOpportunity.sellTo}
+        />
+      )}
     </TooltipProvider>
   );
 };
