@@ -24,7 +24,7 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { openExchangePages } from '@/lib/exchangeUrls';
 import { MultiSelectExchange } from './MultiSelectExchange';
 import { ExternalAnalysisModal } from './ExternalAnalysisModal';
-
+import { FloatingArbitrageCalculator } from './FloatingArbitrageCalculator';
 type SortField = 'symbol' | 'entrySpread' | 'exitSpread' | 'buyVol24' | 'sellVol24';
 type SortOrder = 'asc' | 'desc';
 
@@ -489,6 +489,8 @@ const ExternalOpportunitiesTable = () => {
                 {isConnected ? 'Desconectar' : 'Conectar'}
               </Button>
 
+              {/* Calculadora de Arbitragem */}
+              <FloatingArbitrageCalculator />
               {/* Busca */}
               <div className="relative flex-1 sm:flex-initial">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
