@@ -9,6 +9,7 @@ import DashboardStats from '@/components/DashboardStats';
 import MonitoringStatus from '@/components/MonitoringStatus';
 import StartMonitoringButton from '@/components/StartMonitoringButton';
 import OpportunitiesTable from '@/components/OpportunitiesTable';
+import ExternalOpportunitiesTable from '@/components/ExternalOpportunitiesTable';
 import ImprovedArbitrageCalculator from '@/components/ImprovedArbitrageCalculator';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { StarBackground } from '@/components/StarBackground';
@@ -61,8 +62,11 @@ const Dashboard = () => {
           {/* Stats Cards */}
           <DashboardStats />
 
-          {/* Tabela de Oportunidades */}
+          {/* Tabela de Oportunidades MEXC */}
           <OpportunitiesTable />
+
+          {/* Tabela de Oportunidades Multi-Exchange (WebSocket Externo) */}
+          <ExternalOpportunitiesTable />
         </main>
       </PageTransition>
     </div>
