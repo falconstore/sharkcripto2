@@ -1,30 +1,33 @@
 import { useEffect, useRef, useMemo, memo } from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
 
 interface TradingViewWidgetProps {
   symbol: string;
-  exchange: string;
-  market: 'spot' | 'future';
+  spotExchange: string;
+  futuresExchange: string;
   height?: number;
 }
 
 const TradingViewWidget = memo(({ 
   symbol, 
-  exchange, 
-  market,
-  height = 300 
+  spotExchange,
+  futuresExchange,
+  height = 400 
 }: TradingViewWidgetProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scriptRef = useRef<HTMLScriptElement | null>(null);
 
-  // Formatar símbolo para TradingView
-  // MEXC:BTCUSDT (spot) ou MEXC:BTCUSDTPERP (futures)
-  const tvSymbol = useMemo(() => {
+  // Formatar símbolos para TradingView
+  // MEXC:BTCUSDT (spot) e MEXC:BTCUSDTPERP (futures)
+  const { spotSymbol, futuresSymbol } = useMemo(() => {
     const cleanSymbol = symbol.replace(/USDT|\/USDT|_USDT/gi, '').toUpperCase();
-    const exchangeUpper = exchange.toUpperCase();
-    const base = `${exchangeUpper}:${cleanSymbol}USDT`;
-    return market === 'future' ? `${base}PERP` : base;
-  }, [symbol, exchange, market]);
+    const spotEx = spotExchange.toUpperCase();
+    const futEx = futuresExchange.toUpperCase();
+    
+    return {
+      spotSymbol: `${spotEx}:${cleanSymbol}USDT`,
+      futuresSymbol: `${futEx}:${cleanSymbol}USDTPERP`
+    };
+  }, [symbol, spotExchange, futuresExchange]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -40,26 +43,51 @@ const TradingViewWidget = memo(({
     widgetWrapper.style.width = '100%';
     container.appendChild(widgetWrapper);
 
-    // Criar e configurar script
+    // Criar e configurar script - usando symbol-overview para comparação
     const script = document.createElement('script');
-    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js';
     script.type = 'text/javascript';
     script.async = true;
     script.innerHTML = JSON.stringify({
+      symbols: [[
+        symbol.toUpperCase(),
+        `${spotSymbol}|5`  // Símbolo Spot + intervalo 5min
+      ]],
+      compareSymbols: [{
+        symbol: futuresSymbol,
+        lineColor: "rgba(139, 92, 246, 1)",  // Violet para Futures
+        lineWidth: 2
+      }],
+      chartOnly: false,
+      width: "100%",
+      height: height,
+      locale: "br",
+      colorTheme: "dark",
       autosize: true,
-      symbol: tvSymbol,
-      interval: '1',
-      timezone: 'America/Sao_Paulo',
-      theme: 'dark',
-      style: '1',
-      locale: 'br',
-      enable_publishing: false,
-      allow_symbol_change: false,
-      save_image: false,
-      hide_top_toolbar: false,
-      hide_legend: false,
-      hide_volume: false,
-      support_host: 'https://www.tradingview.com'
+      showVolume: true,
+      showMA: false,
+      hideDateRanges: false,
+      hideMarketStatus: false,
+      hideSymbolLogo: false,
+      scalePosition: "right",
+      scaleMode: "Normal",  // Escala regular
+      fontFamily: "-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif",
+      fontSize: "10",
+      noTimeScale: false,
+      valuesTracking: "1",
+      changeMode: "price-and-percent",
+      chartType: "line",  // Gráfico de linha
+      lineWidth: 2,
+      lineType: 0,
+      lineColor: "rgba(34, 211, 238, 1)",  // Cyan para Spot
+      dateRanges: [
+        "1d|5",
+        "1m|30",
+        "3m|60",
+        "12m|1D",
+        "60m|1W",
+        "all|1M"
+      ]
     });
 
     scriptRef.current = script;
@@ -71,7 +99,7 @@ const TradingViewWidget = memo(({
       }
       scriptRef.current = null;
     };
-  }, [tvSymbol, height]);
+  }, [spotSymbol, futuresSymbol, symbol, height]);
 
   return (
     <div className="relative w-full h-full">

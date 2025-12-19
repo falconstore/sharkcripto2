@@ -740,56 +740,35 @@ export const ExternalAnalysisModal = ({
                 </TabsTrigger>
               </TabsList>
 
-              {/* Tab TradingView - Side by Side Spot/Futures */}
+              {/* Tab TradingView - Spot e Futures sobrepostos */}
               <TabsContent value="tradingview" className="space-y-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 h-80">
-                  {/* Spot Chart */}
-                  <div className="border border-border rounded-lg overflow-hidden flex flex-col">
-                    <div className="text-xs p-2 bg-cyan-500/20 text-cyan-400 text-center font-medium flex items-center justify-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      SPOT - {buyFrom.toUpperCase()}
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-center gap-4 p-2 bg-accent/30">
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <div className="w-3 h-0.5 bg-cyan-400 rounded-full" />
+                      <span className="text-cyan-400 font-medium">SPOT</span>
                     </div>
-                    <div className="flex-1">
-                      <Suspense fallback={
-                        <div className="h-full flex items-center justify-center bg-accent/20">
-                          <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
-                        </div>
-                      }>
-                        <TradingViewWidget 
-                          symbol={symbol}
-                          exchange={buyFrom}
-                          market="spot"
-                          height={280}
-                        />
-                      </Suspense>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <div className="w-3 h-0.5 bg-violet-400 rounded-full" />
+                      <span className="text-violet-400 font-medium">FUTURES</span>
                     </div>
                   </div>
-                  
-                  {/* Futures Chart */}
-                  <div className="border border-border rounded-lg overflow-hidden flex flex-col">
-                    <div className="text-xs p-2 bg-violet-500/20 text-violet-400 text-center font-medium flex items-center justify-center gap-1">
-                      <TrendingDown className="w-3 h-3" />
-                      FUTURES - {sellTo.toUpperCase()}
+                  <Suspense fallback={
+                    <div className="h-80 flex items-center justify-center bg-accent/20">
+                      <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
                     </div>
-                    <div className="flex-1">
-                      <Suspense fallback={
-                        <div className="h-full flex items-center justify-center bg-accent/20">
-                          <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
-                        </div>
-                      }>
-                        <TradingViewWidget 
-                          symbol={symbol}
-                          exchange={sellTo}
-                          market="future"
-                          height={280}
-                        />
-                      </Suspense>
-                    </div>
-                  </div>
+                  }>
+                    <TradingViewWidget 
+                      symbol={symbol}
+                      spotExchange={buyFrom}
+                      futuresExchange={sellTo}
+                      height={350}
+                    />
+                  </Suspense>
                 </div>
                 
                 <p className="text-[10px] text-muted-foreground text-center">
-                  Gráficos TradingView em tempo real • Intervalo: 1 minuto
+                  Gráfico TradingView • Intervalo: 5 minutos • Escala regular • Linha
                 </p>
               </TabsContent>
 
