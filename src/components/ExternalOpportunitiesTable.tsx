@@ -42,6 +42,19 @@ const getCrossingsCount = (histCruzamento: string | null | undefined): number | 
 };
 
 const ExternalOpportunitiesTable = () => {
+  // DEBUG: Log para inspecionar o campo 'current' das oportunidades
+  const logCurrentField = (opportunities: any[]) => {
+    if (opportunities.length > 0) {
+      console.log('=== DEBUG: Campos "current" das oportunidades ===');
+      opportunities.slice(0, 3).forEach((opp, idx) => {
+        console.log(`[${idx}] ${opp.symbol}:`, {
+          current: opp.current,
+          histCruzamento: opp.histCruzamento ? JSON.parse(opp.histCruzamento) : null,
+        });
+      });
+    }
+  };
+
   const { 
     opportunities, 
     isConnected, 
@@ -52,6 +65,11 @@ const ExternalOpportunitiesTable = () => {
     connect, 
     disconnect 
   } = useExternalArbitrage();
+  
+  // DEBUG: Log do campo 'current' quando oportunidades mudarem
+  useEffect(() => {
+    logCurrentField(opportunities);
+  }, [opportunities]);
   
   const { favorites, toggleFavorite } = usePreferences();
   const isMobile = useIsMobile();
